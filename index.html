@@ -20,6 +20,9 @@
           <p class="eyebrow">FAST LEDGER</p>
           <h1>极速记账</h1>
           <p class="hero-text">这一版专门为手机端做成了“打开就能记”的模式，语音、快捷模板、最近账单都放在第一屏。</p>
+          <div class="hero-actions">
+            <button class="primary-button" id="scrollToEntryBtn" type="button">立即记一笔</button>
+          </div>
         </div>
         <button class="ghost-button" id="installBtn" type="button" hidden>安装</button>
       </div>
@@ -308,6 +311,50 @@
       <div class="record-items"></div>
     </article>
   </template>
+
+  <div class="sheet-backdrop" id="itemEditor" hidden>
+    <section class="sheet-panel" aria-labelledby="itemEditorTitle" aria-modal="true" role="dialog">
+      <div class="panel-head compact">
+        <div>
+          <p class="section-kicker">ITEM EDITOR</p>
+          <h3 id="itemEditorTitle">编辑单笔记录</h3>
+        </div>
+        <button class="ghost-button sheet-close" id="closeItemEditorBtn" type="button">关闭</button>
+      </div>
+
+      <div class="sheet-meta">
+        <span id="itemEditorDate">-</span>
+        <span id="itemEditorPayer">-</span>
+      </div>
+
+      <div class="sheet-form">
+        <label>
+          <span>内容</span>
+          <input id="itemEditorText" type="text" placeholder="例如：午饭 28 元">
+        </label>
+        <label>
+          <span>金额</span>
+          <input id="itemEditorAmount" type="number" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label>
+          <span>类型</span>
+          <select id="itemEditorType">
+            <option value="expense">支出</option>
+            <option value="income">收入</option>
+          </select>
+        </label>
+        <label>
+          <span>分类</span>
+          <select id="itemEditorCategory"></select>
+        </label>
+      </div>
+
+      <div class="sheet-actions">
+        <button class="danger-button" id="deleteItemBtn" type="button">删除这一笔</button>
+        <button class="primary-button" id="saveItemEditorBtn" type="button">保存修改</button>
+      </div>
+    </section>
+  </div>
 
   <script src="./app.js"></script>
 </body>

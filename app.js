@@ -38,7 +38,6 @@ const els = {
   previewList: q("#previewList"),
   loadTodayBtn: q("#loadTodayBtn"),
   monthExpense: q("#monthExpense"),
-  monthIncome: q("#monthIncome"),
   budgetAlerts: q("#budgetAlerts"),
   recordStreak: q("#recordStreak"),
   budgetForm: q("#budgetForm"),
@@ -87,7 +86,17 @@ const els = {
   recordTemplate: q("#recordTemplate"),
   scrollToEntryBtn: q("#scrollToEntryBtn"),
   installBtn: q("#installBtn"),
-  mobileNav: q("#mobileNav")
+  mobileNav: q("#mobileNav"),
+  itemEditor: q("#itemEditor"),
+  closeItemEditorBtn: q("#closeItemEditorBtn"),
+  itemEditorDate: q("#itemEditorDate"),
+  itemEditorPayer: q("#itemEditorPayer"),
+  itemEditorText: q("#itemEditorText"),
+  itemEditorAmount: q("#itemEditorAmount"),
+  itemEditorType: q("#itemEditorType"),
+  itemEditorCategory: q("#itemEditorCategory"),
+  saveItemEditorBtn: q("#saveItemEditorBtn"),
+  deleteItemBtn: q("#deleteItemBtn")
 };
 
 const state = {
@@ -99,12 +108,14 @@ const state = {
   reportType: "monthly",
   recordSearch: "",
   recordFilter: "all",
-  mobileSection: "overview"
+  mobileSection: "home",
+  editingItemId: null
 };
 
 let recognition = null;
 let isListening = false;
 let deferredInstallPrompt = null;
+let voiceSessionText = "";
 
 init();
 
@@ -125,8 +136,8 @@ function init() {
 function bindEvents() {
   els.previewBtn.addEventListener("click", renderPreview);
   els.entryInput.addEventListener("input", debounce(renderPreview, 150));
-  els.saveEntryBtn.addEventListener("click", saveCurrentEntry);
-  els.mobileSaveBtn.addEventListener("click", saveCurrentEntry);
+  els.saveEntryBtn.addEventListener("click", () => saveCurrentEntry());
+  els.mobileSaveBtn.addEventListener("click", () => saveCurrentEntry());
   els.voiceBtn.addEventListener("click", toggleVoice);
   els.mobileVoiceBtn.addEventListener("click", toggleVoice);
   els.loadTodayBtn.addEventListener("click", () => {
@@ -160,12 +171,13 @@ function bindEvents() {
   els.exportHtmlBtn.addEventListener("click", exportHtml);
   els.printBtn.addEventListener("click", () => window.print());
   els.reportDate.addEventListener("change", renderAll);
-  els.scrollToEntryBtn.addEventListener("click", () => showSection("entry", true));
+  els.scrollToEntryBtn?.addEventListener("click", () => showSection("entry", true));
   els.installBtn.addEventListener("click", installApp);
-  document.querySelectorAll(".chip-button").forEach((button) => {
+  document.querySelectorAll(".shortcut-card").forEach((button) => {
     button.addEventListener("click", () => {
       els.entryInput.value = els.entryInput.value.trim() ? `${els.entryInput.value.trim()}\n${button.dataset.template}` : button.dataset.template;
       renderPreview();
+      showSection("entry");
     });
   });
   els.reportTabs.querySelectorAll(".tab").forEach((tab) => {
@@ -178,6 +190,18 @@ function bindEvents() {
   });
   els.mobileNav.querySelectorAll(".mobile-nav-btn").forEach((button) => {
     button.addEventListener("click", () => showSection(button.dataset.target));
+  });
+  els.recordsContainer.addEventListener("click", handleRecordActions);
+  els.recordsContainer.addEventListener("change", handleRecordActions);
+  els.closeItemEditorBtn.addEventListener("click", closeItemEditor);
+  els.saveItemEditorBtn.addEventListener("click", saveEditedItem);
+  els.deleteItemBtn.addEventListener("click", deleteEditingItem);
+  els.itemEditorType.addEventListener("change", syncItemEditorCategory);
+  els.itemEditor.addEventListener("click", (event) => {
+    if (event.target === els.itemEditor) closeItemEditor();
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.itemEditor.hidden) closeItemEditor();
   });
   window.addEventListener("resize", syncMobileSection);
 }
@@ -203,23 +227,40 @@ function setupVoice() {
   recognition = new SpeechRecognition();
   recognition.lang = "zh-CN";
   recognition.interimResults = true;
+  recognition.continuous = false;
   recognition.onstart = () => {
     isListening = true;
+    voiceSessionText = "";
     setVoiceButtons(true);
     els.voiceStatus.textContent = "正在听写，请直接说出消费内容。";
   };
   recognition.onresult = (event) => {
-    const transcript = Array.from(event.results).map((item) => item[0].transcript).join("").trim();
+    const transcript = Array.from(event.results)
+      .filter((item) => item.isFinal)
+      .map((item) => item[0].transcript)
+      .join("")
+      .trim();
     if (!transcript) return;
-    els.entryInput.value = els.entryInput.value.trim() ? `${els.entryInput.value.trim()}\n${transcript}` : transcript;
-    renderPreview();
+    voiceSessionText = transcript;
+    els.voiceStatus.textContent = `已识别：${transcript}`;
   };
   recognition.onerror = (event) => {
     els.voiceStatus.textContent = `语音识别失败：${event.error || "未知错误"}`;
     setVoiceButtons(false);
   };
   recognition.onend = () => {
-    if (isListening) els.voiceStatus.textContent = "语音录入结束，文本已追加到输入框。";
+    const transcript = voiceSessionText.trim();
+    if (transcript) {
+      els.entryInput.value = els.entryInput.value.trim() ? `${els.entryInput.value.trim()}\n${transcript}` : transcript;
+      renderPreview();
+      const previewItems = parseLedgerInput(els.entryInput.value);
+      const shouldSave = previewItems.length > 0 && window.confirm(`识别到 ${previewItems.length} 条记录，是否立即保存到 ${els.entryDate.value}？`);
+      els.voiceStatus.textContent = shouldSave ? "识别完成，正在保存本次语音记账。" : "识别完成，已加入输入框，你可以再检查一下。";
+      if (shouldSave) saveCurrentEntry({ silent: true, fromVoice: true });
+    } else if (isListening) {
+      els.voiceStatus.textContent = "语音录入结束，没有识别到有效内容。";
+    }
+    voiceSessionText = "";
     setVoiceButtons(false);
   };
 }
@@ -349,22 +390,24 @@ function renderRecords() {
     record.items.forEach((item) => {
       const row = document.createElement("div");
       row.className = "record-item";
-      row.innerHTML = `<div class="record-main"><strong>${escapeHtml(item.text)}</strong><span>${TYPE_LABEL[item.type]} · ${CATEGORIES[item.category].label}</span></div>${renderTypePill(item.type)}<div class="amount-text ${item.type}">${formatCurrency(item.amount)}</div>${renderCategorySelect(item.category, item.id)}${renderTag(item.category)}`;
+      row.innerHTML = `
+        <div class="record-main">
+          <strong>${escapeHtml(item.text)}</strong>
+          <span>${TYPE_LABEL[item.type]} · ${CATEGORIES[item.category].label}</span>
+        </div>
+        ${renderTypePill(item.type)}
+        <div class="amount-text ${item.type}">${formatCurrency(item.amount)}</div>
+        ${renderCategorySelect(item.category, item.id)}
+        ${renderTag(item.category)}
+        <div class="record-item-actions">
+          <button class="ghost-button mini-button" data-action="edit-item" data-item-id="${item.id}" type="button">编辑</button>
+          <button class="ghost-button mini-button danger-ghost" data-action="delete-item" data-item-id="${item.id}" type="button">删除</button>
+        </div>
+      `;
       itemsContainer.appendChild(row);
     });
     fragment.querySelector(".record-delete").addEventListener("click", () => deleteRecord(record.date));
     els.recordsContainer.appendChild(fragment);
-  });
-  document.querySelectorAll(".record-select").forEach((select) => {
-    select.addEventListener("change", (event) => {
-      const itemId = event.target.dataset.itemId;
-      state.records = state.records.map((record) => ({
-        ...record,
-        items: record.items.map((item) => item.id === itemId ? { ...item, category: event.target.value } : item)
-      }));
-      persistRecords();
-      renderAll();
-    });
   });
 }
 
@@ -379,6 +422,32 @@ function getFilteredRecords() {
     if (state.recordFilter === "budget-alert") return record.items.some((item) => overBudget.has(item.category));
     return true;
   });
+}
+
+function handleRecordActions(event) {
+  const itemId = event.target.dataset.itemId;
+  if (!itemId) return;
+
+  if (event.type === "change" && event.target.matches(".record-select")) {
+    const targetCategory = event.target.value;
+    state.records = state.records.map((record) => ({
+      ...record,
+      items: record.items.map((item) => item.id === itemId ? { ...item, category: targetCategory } : item)
+    }));
+    persistRecords();
+    renderAll();
+    return;
+  }
+
+  if (event.type !== "click") return;
+
+  if (event.target.dataset.action === "edit-item") {
+    openItemEditor(itemId);
+  }
+
+  if (event.target.dataset.action === "delete-item") {
+    removeItem(itemId, true);
+  }
 }
 
 function renderReport() {
@@ -447,11 +516,9 @@ function updateHeroStats() {
   const todayRecords = filterRecordsByType("daily", els.entryDate.value || formatDate(new Date()));
   const todayItems = todayRecords.flatMap((record) => record.items).filter((item) => item.type === "expense");
   const expenses = monthItems.filter((item) => item.type === "expense");
-  const incomes = monthItems.filter((item) => item.type === "income");
   const budgetAlerts = getMonthlyBudgetUsage(els.reportDate.value).filter((item) => item.budget > 0 && item.spent > item.budget).length;
   els.todayExpense.textContent = formatCurrency(sumAmount(todayItems));
   els.monthExpense.textContent = formatCurrency(sumAmount(expenses));
-  els.monthIncome.textContent = formatCurrency(sumAmount(incomes));
   els.budgetAlerts.textContent = String(budgetAlerts);
   els.recordStreak.textContent = `${calculateStreak()}天`;
 }
@@ -521,7 +588,8 @@ function filterRecordsByType(type, baseDate) {
   }).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function saveCurrentEntry() {
+function saveCurrentEntry(options = {}) {
+  const { silent = false, fromVoice = false } = options;
   const date = els.entryDate.value;
   const payer = els.payerName.value.trim();
   const items = parseLedgerInput(els.entryInput.value);
@@ -533,7 +601,15 @@ function saveCurrentEntry() {
   state.records = normalizeRecords(state.records);
   persistRecords();
   renderAll();
-  window.alert("记账记录已保存。");
+  if (fromVoice && window.matchMedia("(max-width: 720px)").matches) {
+    showSection("today");
+  }
+  if (!silent) {
+    window.alert("记账记录已保存。");
+  } else if (fromVoice) {
+    els.voiceStatus.textContent = `语音记账已保存，共 ${items.length} 条。`;
+  }
+  return true;
 }
 
 function parseLedgerInput(rawText) {
@@ -566,13 +642,93 @@ function deleteRecord(date) {
   if (!window.confirm(`确认删除 ${date} 的记账记录吗？`)) return;
   state.records = state.records.filter((record) => record.date !== date);
   persistRecords();
+  if (els.entryDate.value === date) loadEntryForDate(date);
   renderAll();
+}
+
+function openItemEditor(itemId) {
+  const found = findItemById(itemId);
+  if (!found) return;
+  state.editingItemId = itemId;
+  const { record, item } = found;
+  els.itemEditorDate.textContent = formatDisplayDate(record.date);
+  els.itemEditorPayer.textContent = record.payer ? `账户：${record.payer}` : "账户：未填写";
+  els.itemEditorText.value = item.text;
+  els.itemEditorAmount.value = String(item.amount);
+  els.itemEditorType.value = item.type;
+  syncItemEditorCategory(item.category);
+  els.itemEditor.hidden = false;
+}
+
+function closeItemEditor() {
+  state.editingItemId = null;
+  els.itemEditor.hidden = true;
+}
+
+function syncItemEditorCategory(selectedCategory = "") {
+  const type = els.itemEditorType.value;
+  const options = Object.entries(CATEGORIES)
+    .filter(([key]) => type === "income" ? key === "salary" || key === "other" : key !== "salary")
+    .map(([key, meta]) => `<option value="${key}" ${key === (selectedCategory || els.itemEditorCategory.value) ? "selected" : ""}>${meta.label}</option>`)
+    .join("");
+  els.itemEditorCategory.innerHTML = options;
+  if (!els.itemEditorCategory.value) {
+    els.itemEditorCategory.value = type === "income" ? "salary" : "food";
+  }
+}
+
+function saveEditedItem() {
+  const itemId = state.editingItemId;
+  if (!itemId) return;
+  const text = els.itemEditorText.value.trim();
+  const amount = Number(els.itemEditorAmount.value || 0);
+  const type = els.itemEditorType.value === "income" ? "income" : "expense";
+  const category = els.itemEditorCategory.value;
+  if (!text || !amount) {
+    window.alert("请先填写内容和金额。");
+    return;
+  }
+  state.records = state.records.map((record) => ({
+    ...record,
+    items: record.items.map((item) => item.id === itemId ? { ...item, text, amount, type, category } : item)
+  }));
+  state.records = normalizeRecords(state.records);
+  persistRecords();
+  closeItemEditor();
+  loadEntryForDate(els.entryDate.value);
+  renderAll();
+}
+
+function deleteEditingItem() {
+  if (!state.editingItemId) return;
+  removeItem(state.editingItemId, true);
+  closeItemEditor();
+}
+
+function removeItem(itemId, askConfirm = false) {
+  if (askConfirm && !window.confirm("确认删除这一笔记录吗？")) return false;
+  const currentDate = els.entryDate.value;
+  state.records = state.records
+    .map((record) => ({
+      ...record,
+      items: record.items.filter((item) => item.id !== itemId)
+    }))
+    .filter((record) => record.items.length);
+  if (state.editingItemId === itemId) {
+    state.editingItemId = null;
+    els.itemEditor.hidden = true;
+  }
+  persistRecords();
+  if (currentDate) loadEntryForDate(currentDate);
+  renderAll();
+  return true;
 }
 
 function clearAllData() {
   if (!window.confirm("确认清空所有本地记账数据吗？此操作不可撤销。")) return;
   state.records = [];
   persistRecords();
+  closeItemEditor();
   els.entryInput.value = "";
   els.payerName.value = "";
   renderAll();
@@ -847,6 +1003,14 @@ function syncMobileSection() {
   els.mobileNav.querySelectorAll(".mobile-nav-btn").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.target === state.mobileSection);
   });
+}
+
+function findItemById(itemId) {
+  for (const record of state.records) {
+    const item = record.items.find((entry) => entry.id === itemId);
+    if (item) return { record, item };
+  }
+  return null;
 }
 
 function renderTag(category) {
