@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能记账板</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">VOICE IN · INSIGHT OUT</p>
+        <h1>智能记账板</h1>
+        <p class="hero-text">
+          支持语音识别、自然语言录入、月度消费可视化与报表导出。
+          你可以直接说“今天午饭 28 元，打车 36 元”，系统会自动拆分、识别分类并生成月消费面板。
+        </p>
+      </div>
+      <div class="hero-card">
+        <div class="hero-stat"><span>本月支出</span><strong id="monthExpense">¥0.00</strong></div>
+        <div class="hero-stat"><span>本月记录笔数</span><strong id="monthCount">0</strong></div>
+        <div class="hero-stat"><span>活跃分类</span><strong id="activeCategories">0</strong></div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel input-panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">SMART INPUT</p>
+            <h2>新增记账</h2>
+          </div>
+          <button class="ghost-button" id="loadTodayBtn" type="button">回到今天</button>
+        </div>
+
+        <div class="input-grid">
+          <label>
+            <span>日期</span>
+            <input id="entryDate" type="date">
+          </label>
+          <label>
+            <span>付款人 / 账户</span>
+            <input id="payerName" type="text" placeholder="例如：我 / 家庭公共账户">
+          </label>
+        </div>
+
+        <label class="textarea-wrap">
+          <span>记账内容</span>
+          <textarea id="entryInput" rows="8" placeholder="支持多行输入或自然语言段落，例如：
+早餐 16 元
+咖啡 32 元
+今天打车去客户那边花了 48 元，晚上买菜 86 元"></textarea>
+        </label>
+
+        <div class="voice-row">
+          <button class="ghost-button" id="voiceBtn" type="button">开始语音录入</button>
+          <p id="voiceStatus" class="status-text">当前设备若支持 Web Speech API，可直接语音转文字。</p>
+        </div>
+
+        <div class="helper-row">
+          <p>系统会自动识别金额、分类、收入/支出，并允许你在保存后手动调整。</p>
+          <button class="primary-button" id="saveEntryBtn" type="button">保存记录</button>
+        </div>
+
+        <div class="preview-box">
+          <div class="panel-head compact">
+            <h3>智能识别预览</h3>
+            <button class="ghost-button" id="previewBtn" type="button">刷新预览</button>
+          </div>
+          <div id="previewList" class="preview-list empty-state">输入内容后，这里会展示自动识别结果。</div>
+        </div>
+      </section>
+
+      <section class="panel records-panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">LEDGER</p>
+            <h2>最近记录</h2>
+          </div>
+          <button class="ghost-button" id="clearAllBtn" type="button">清空本地数据</button>
+        </div>
+        <div id="recordsContainer" class="records-list empty-state">还没有记账记录，先新增一笔试试。</div>
+      </section>
+
+      <section class="panel report-panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">MONTHLY VIEW</p>
+            <h2>消费看板与导出</h2>
+          </div>
+          <div class="inline-actions">
+            <button class="ghost-button" id="exportCsvBtn" type="button">导出 CSV</button>
+            <button class="ghost-button" id="exportHtmlBtn" type="button">导出 HTML</button>
+            <button class="primary-button" id="printBtn" type="button">打印 / 导出 PDF</button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="tab-switch" id="reportTabs">
+            <button class="tab is-active" data-type="monthly" type="button">月视图</button>
+            <button class="tab" data-type="weekly" type="button">周视图</button>
+            <button class="tab" data-type="daily" type="button">日视图</button>
+          </div>
+          <label>
+            <span>统计日期</span>
+            <input id="reportDate" type="date">
+          </label>
+        </div>
+
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="visual-grid">
+          <div class="visual-card">
+            <div class="panel-head compact"><h3>分类消费分布</h3></div>
+            <div id="categoryChart" class="chart-area"></div>
+          </div>
+          <div class="visual-card">
+            <div class="panel-head compact"><h3>日期消费走势</h3></div>
+            <div id="timelineChart" class="chart-area"></div>
+          </div>
+        </div>
+
+        <div class="report-output">
+          <div class="panel-head compact"><h3>月度消费摘要</h3></div>
+          <textarea id="reportText" rows="10" readonly></textarea>
+        </div>
+
+        <div class="table-wrap">
+          <table id="summaryTable">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="recordTemplate">
+    <article class="record-card">
+      <div class="record-top">
+        <div>
+          <h3 class="record-date"></h3>
+          <p class="record-payer"></p>
+        </div>
+        <button class="ghost-button record-delete" type="button">删除当天</button>
+      </div>
+      <div class="record-items"></div>
+    </article>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
