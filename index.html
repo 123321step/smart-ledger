@@ -130,6 +130,37 @@
         <p id="syncStatus" class="status-text status-strong">还没有配置云同步。</p>
       </section>
 
+      <section class="panel sync-panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">OPENAI REPORT</p>
+            <h2>AI 接口配置</h2>
+          </div>
+        </div>
+
+        <div class="sync-note">
+          这里使用 OpenAI Responses API 生成更自然的消费月报。API Key 仅保存在当前浏览器本地。
+        </div>
+
+        <div class="input-grid single-grid">
+          <label>
+            <span>OpenAI API Key</span>
+            <input id="openaiApiKeyInput" type="password" placeholder="粘贴 sk-...">
+          </label>
+          <label>
+            <span>模型</span>
+            <input id="openaiModelInput" type="text" value="gpt-5" placeholder="例如：gpt-5">
+          </label>
+        </div>
+
+        <div class="inline-actions block-actions">
+          <button class="ghost-button" id="saveAiConfigBtn" type="button">保存 AI 配置</button>
+          <button class="primary-button" id="generateAiReportBtn" type="button">生成 AI 月报</button>
+        </div>
+
+        <p id="aiStatus" class="status-text status-strong">还没有配置 OpenAI API。</p>
+      </section>
+
       <section class="panel records-panel">
         <div class="panel-head">
           <div>

@@ -1,5 +1,6 @@
 const STORAGE_KEY = "smart-ledger-v2-records";
 const SYNC_KEY = "smart-ledger-v2-sync";
+const AI_KEY = "smart-ledger-v2-ai";
 const GIST_FILENAME = "smart-ledger-sync.json";
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -65,10 +66,15 @@ const els = {
   recordTemplate: q("#recordTemplate"),
   gistTokenInput: q("#gistTokenInput"),
   gistIdInput: q("#gistIdInput"),
+  openaiApiKeyInput: q("#openaiApiKeyInput"),
+  openaiModelInput: q("#openaiModelInput"),
   saveSyncConfigBtn: q("#saveSyncConfigBtn"),
   pushCloudBtn: q("#pushCloudBtn"),
   pullCloudBtn: q("#pullCloudBtn"),
   syncStatus: q("#syncStatus"),
+  saveAiConfigBtn: q("#saveAiConfigBtn"),
+  generateAiReportBtn: q("#generateAiReportBtn"),
+  aiStatus: q("#aiStatus"),
   scrollToEntryBtn: q("#scrollToEntryBtn"),
   installBtn: q("#installBtn")
 };
@@ -76,6 +82,7 @@ const els = {
 const state = {
   records: loadJson(STORAGE_KEY, []),
   sync: loadJson(SYNC_KEY, { token: "", gistId: "" }),
+  ai: loadJson(AI_KEY, { apiKey: "", model: "gpt-5" }),
   reportType: "monthly"
 };
 
@@ -91,6 +98,8 @@ function init() {
   els.reportDate.value = today;
   els.gistTokenInput.value = state.sync.token || "";
   els.gistIdInput.value = state.sync.gistId || "";
+  els.openaiApiKeyInput.value = state.ai.apiKey || "";
+  els.openaiModelInput.value = state.ai.model || "gpt-5";
   bindEvents();
   setupVoice();
   setupInstallPrompt();
@@ -98,6 +107,7 @@ function init() {
   loadEntryForDate(today);
   renderAll();
   updateSyncStatus();
+  updateAiStatus();
 }
 
 function bindEvents() {
@@ -124,6 +134,8 @@ function bindEvents() {
   els.saveSyncConfigBtn.addEventListener("click", saveSyncConfig);
   els.pushCloudBtn.addEventListener("click", pushCloudBackup);
   els.pullCloudBtn.addEventListener("click", pullCloudBackup);
+  els.saveAiConfigBtn.addEventListener("click", saveAiConfig);
+  els.generateAiReportBtn.addEventListener("click", generateAiReport);
   els.scrollToEntryBtn.addEventListener("click", () => els.entrySection.scrollIntoView({ behavior: "smooth" }));
   els.installBtn.addEventListener("click", installApp);
   document.querySelectorAll(".chip-button").forEach((button) => {
@@ -217,6 +229,15 @@ function saveSyncConfig() {
   state.sync = { token: els.gistTokenInput.value.trim(), gistId: els.gistIdInput.value.trim() };
   localStorage.setItem(SYNC_KEY, JSON.stringify(state.sync));
   updateSyncStatus("同步配置已保存在当前浏览器。");
+}
+
+function saveAiConfig() {
+  state.ai = {
+    apiKey: els.openaiApiKeyInput.value.trim(),
+    model: (els.openaiModelInput.value.trim() || "gpt-5")
+  };
+  localStorage.setItem(AI_KEY, JSON.stringify(state.ai));
+  updateAiStatus("AI 配置已保存在当前浏览器。");
 }
 
 async function pushCloudBackup() {
@@ -541,6 +562,103 @@ function normalizeRecords(records) {
 
 function updateSyncStatus(message) {
   els.syncStatus.textContent = message || (!state.sync.token ? "还没有配置云同步。" : !state.sync.gistId ? "Token 已保存，首次上传时会自动创建 Gist。" : `已连接云端账本：${state.sync.gistId}`);
+}
+
+function updateAiStatus(message) {
+  els.aiStatus.textContent = message || (!state.ai.apiKey ? "还没有配置 OpenAI API。" : `已启用 AI 月报模型：${state.ai.model}`);
+}
+
+async function generateAiReport() {
+  const apiKey = els.openaiApiKeyInput.value.trim();
+  const model = els.openaiModelInput.value.trim() || "gpt-5";
+  if (!apiKey) return window.alert("请先填写 OpenAI API Key。");
+
+  const report = buildReport();
+  if (!report.summaryRows.length) return window.alert("当前区间没有可用于 AI 总结的数据。");
+
+  state.ai = { apiKey, model };
+  localStorage.setItem(AI_KEY, JSON.stringify(state.ai));
+  updateAiStatus("正在生成 AI 月报...");
+  els.generateAiReportBtn.disabled = true;
+
+  const payload = {
+    model,
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: "你是一名中文个人财务分析助手。请基于用户提供的账单统计，输出简洁、具体、可执行的消费月报。内容包含：整体总结、主要支出点、异常提醒、下月建议。不要输出 markdown 标题，直接用自然中文分段。"
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              `统计区间：${report.rangeText}`,
+              `总支出：${formatCurrency(report.totalExpense)}`,
+              `总收入：${formatCurrency(report.totalIncome)}`,
+              `结余：${formatCurrency(report.net)}`,
+              "分类支出：",
+              ...report.categoryCounts.map((item) => `- ${item.label}：${formatCurrency(item.amount)}`),
+              "每日支出走势：",
+              ...report.timeline.map((item) => `- ${item.label}：${formatCurrency(item.amount)}`),
+              "账单明细：",
+              ...report.summaryRows.map((row) => `${formatDisplayDate(row.date)} / ${row.payer}\n${row.items}`)
+            ].join("\n")
+          }
+        ]
+      }
+    ]
+  };
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text() || `请求失败 (${response.status})`);
+    }
+
+    const data = await response.json();
+    const text = extractResponseText(data);
+    if (!text) {
+      throw new Error("模型没有返回可读文本");
+    }
+
+    els.reportText.value = text;
+    updateAiStatus(`AI 月报生成成功，模型：${model}`);
+  } catch (error) {
+    updateAiStatus(`AI 月报生成失败：${error.message}`);
+  } finally {
+    els.generateAiReportBtn.disabled = false;
+  }
+}
+
+function extractResponseText(data) {
+  if (typeof data.output_text === "string" && data.output_text.trim()) {
+    return data.output_text.trim();
+  }
+
+  const chunks = [];
+  (data.output || []).forEach((item) => {
+    (item.content || []).forEach((content) => {
+      if (content.type === "output_text" && content.text) {
+        chunks.push(content.text);
+      }
+    });
+  });
+  return chunks.join("\n").trim();
 }
 
 function renderTag(category) {
