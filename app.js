@@ -66,6 +66,7 @@ const els = {
   recordTemplate: q("#recordTemplate"),
   gistTokenInput: q("#gistTokenInput"),
   gistIdInput: q("#gistIdInput"),
+  aiServiceUrlInput: q("#aiServiceUrlInput"),
   openaiApiKeyInput: q("#openaiApiKeyInput"),
   openaiModelInput: q("#openaiModelInput"),
   saveSyncConfigBtn: q("#saveSyncConfigBtn"),
@@ -82,7 +83,7 @@ const els = {
 const state = {
   records: loadJson(STORAGE_KEY, []),
   sync: loadJson(SYNC_KEY, { token: "", gistId: "" }),
-  ai: loadJson(AI_KEY, { apiKey: "", model: "gpt-5" }),
+  ai: loadJson(AI_KEY, { serviceUrl: "", apiKey: "", model: "gpt-5" }),
   reportType: "monthly"
 };
 
@@ -98,6 +99,7 @@ function init() {
   els.reportDate.value = today;
   els.gistTokenInput.value = state.sync.token || "";
   els.gistIdInput.value = state.sync.gistId || "";
+  els.aiServiceUrlInput.value = state.ai.serviceUrl || "";
   els.openaiApiKeyInput.value = state.ai.apiKey || "";
   els.openaiModelInput.value = state.ai.model || "gpt-5";
   bindEvents();
@@ -233,6 +235,7 @@ function saveSyncConfig() {
 
 function saveAiConfig() {
   state.ai = {
+    serviceUrl: els.aiServiceUrlInput.value.trim(),
     apiKey: els.openaiApiKeyInput.value.trim(),
     model: (els.openaiModelInput.value.trim() || "gpt-5")
   };
@@ -565,23 +568,24 @@ function updateSyncStatus(message) {
 }
 
 function updateAiStatus(message) {
-  els.aiStatus.textContent = message || (!state.ai.apiKey ? "还没有配置 OpenAI API。" : `已启用 AI 月报模型：${state.ai.model}`);
+  els.aiStatus.textContent = message || (state.ai.serviceUrl ? `已启用安全 AI 服务：${state.ai.serviceUrl}` : (!state.ai.apiKey ? "还没有配置 OpenAI API 或 AI 服务地址。" : `当前为浏览器直连模式，模型：${state.ai.model}`));
 }
 
 async function generateAiReport() {
+  const serviceUrl = els.aiServiceUrlInput.value.trim();
   const apiKey = els.openaiApiKeyInput.value.trim();
   const model = els.openaiModelInput.value.trim() || "gpt-5";
-  if (!apiKey) return window.alert("请先填写 OpenAI API Key。");
+  if (!serviceUrl && !apiKey) return window.alert("请先填写 AI 服务地址，或填写 OpenAI API Key。");
 
   const report = buildReport();
   if (!report.summaryRows.length) return window.alert("当前区间没有可用于 AI 总结的数据。");
 
-  state.ai = { apiKey, model };
+  state.ai = { serviceUrl, apiKey, model };
   localStorage.setItem(AI_KEY, JSON.stringify(state.ai));
-  updateAiStatus("正在生成 AI 月报...");
+  updateAiStatus(serviceUrl ? "正在通过安全 AI 服务生成月报..." : "正在通过浏览器直连 OpenAI 生成月报...");
   els.generateAiReportBtn.disabled = true;
 
-  const payload = {
+  const promptPayload = {
     model,
     input: [
       {
@@ -617,32 +621,64 @@ async function generateAiReport() {
   };
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(await response.text() || `请求失败 (${response.status})`);
-    }
-
-    const data = await response.json();
-    const text = extractResponseText(data);
+    const text = serviceUrl
+      ? await requestAiReportViaService(serviceUrl, report, model)
+      : await requestAiReportDirect(apiKey, promptPayload);
     if (!text) {
       throw new Error("模型没有返回可读文本");
     }
 
     els.reportText.value = text;
-    updateAiStatus(`AI 月报生成成功，模型：${model}`);
+    updateAiStatus(serviceUrl ? `AI 月报生成成功，已使用安全代理服务。` : `AI 月报生成成功，模型：${model}`);
   } catch (error) {
     updateAiStatus(`AI 月报生成失败：${error.message}`);
   } finally {
     els.generateAiReportBtn.disabled = false;
   }
+}
+
+async function requestAiReportViaService(serviceUrl, report, model) {
+  const response = await fetch(serviceUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      rangeText: report.rangeText,
+      totalExpense: report.totalExpense,
+      totalIncome: report.totalIncome,
+      net: report.net,
+      categoryCounts: report.categoryCounts,
+      timeline: report.timeline,
+      summaryRows: report.summaryRows
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text() || `请求失败 (${response.status})`);
+  }
+
+  const data = await response.json();
+  return String(data.text || "").trim();
+}
+
+async function requestAiReportDirect(apiKey, payload) {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text() || `请求失败 (${response.status})`);
+  }
+
+  const data = await response.json();
+  return extractResponseText(data);
 }
 
 function extractResponseText(data) {
