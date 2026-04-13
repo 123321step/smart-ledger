@@ -12,42 +12,85 @@ export default {
     }
 
     const url = new URL(request.url);
-    if (url.pathname !== "/api/month-report") {
-      return json({ error: "Not found" }, 404, corsHeaders);
-    }
-
     if (request.method !== "POST") {
       return json({ error: "Method not allowed" }, 405, corsHeaders);
     }
 
     try {
-      const body = await request.json();
-      const promptPayload = buildPromptPayload(body, env);
-      const upstream = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${env.OPENAI_API_KEY}`
-        },
-        body: JSON.stringify(promptPayload)
-      });
+      if (url.pathname === "/api/month-report") {
+        const body = await request.json();
+        const promptPayload = buildPromptPayload(body, env);
+        const upstream = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${env.OPENAI_API_KEY}`
+          },
+          body: JSON.stringify(promptPayload)
+        });
 
-      if (!upstream.ok) {
-        const errorText = await upstream.text();
-        return json({ error: errorText || `Upstream failed (${upstream.status})` }, upstream.status, corsHeaders);
+        if (!upstream.ok) {
+          const errorText = await upstream.text();
+          return json({ error: errorText || `Upstream failed (${upstream.status})` }, upstream.status, corsHeaders);
+        }
+
+        const data = await upstream.json();
+        const text = extractResponseText(data);
+        return json({
+          text,
+          model: env.OPENAI_MODEL || "gpt-5"
+        }, 200, corsHeaders);
       }
 
-      const data = await upstream.json();
-      const text = extractResponseText(data);
-      return json({
-        text,
-        model: env.OPENAI_MODEL || "gpt-5"
-      }, 200, corsHeaders);
+      if (url.pathname === "/api/ledger/push") {
+        const body = await request.json();
+        const validated = await validateLedgerAccess(body, env);
+        if (!validated.ok) {
+          return json({ error: validated.error }, validated.status, corsHeaders);
+        }
+
+        await env.LEDGER_STORE.put(validated.key, JSON.stringify({
+          updatedAt: new Date().toISOString(),
+          records: Array.isArray(body.records) ? body.records : []
+        }));
+        return json({ ok: true, space: body.space }, 200, corsHeaders);
+      }
+
+      if (url.pathname === "/api/ledger/pull") {
+        const body = await request.json();
+        const validated = await validateLedgerAccess(body, env);
+        if (!validated.ok) {
+          return json({ error: validated.error }, validated.status, corsHeaders);
+        }
+
+        const raw = await env.LEDGER_STORE.get(validated.key);
+        const data = raw ? JSON.parse(raw) : { records: [] };
+        return json({ ok: true, space: body.space, records: data.records || [] }, 200, corsHeaders);
+      }
+
+      return json({ error: "Not found" }, 404, corsHeaders);
     } catch (error) {
       return json({ error: error.message || "Unknown worker error" }, 500, corsHeaders);
     }
   }
 };
+
+async function validateLedgerAccess(body, env) {
+  const space = String(body.space || "").trim();
+  const passphrase = String(body.passphrase || "").trim();
+  if (!space || !passphrase) {
+    return { ok: false, status: 400, error: "Missing space or passphrase" };
+  }
+  if (!env.LEDGER_STORE) {
+    return { ok: false, status: 500, error: "Missing KV binding" };
+  }
+
+  const hash = await sha256(passphrase);
+  return {
+    ok: true,
+    key: `ledger:${space}:${hash}`
+  };
+}
 
 function buildPromptPayload(body, env) {
   const model = env.OPENAI_MODEL || body.model || "gpt-5";
@@ -120,6 +163,12 @@ function buildCorsHeaders(request, env) {
     "Access-Control-Allow-Headers": ALLOWED_HEADERS,
     "Vary": "Origin"
   };
+}
+
+async function sha256(value) {
+  const encoded = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function formatCurrency(value) {

@@ -165,6 +165,42 @@
         <p id="aiStatus" class="status-text status-strong">还没有配置 OpenAI API。</p>
       </section>
 
+      <section class="panel sync-panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">SECURE LEDGER</p>
+            <h2>云账本空间</h2>
+          </div>
+        </div>
+
+        <div class="sync-note">
+          通过你自己的 AI Worker 保存账本到云端。适合多设备同步，也比浏览器本地存储更适合长期使用。
+        </div>
+
+        <div class="input-grid single-grid">
+          <label>
+            <span>云账本服务地址</span>
+            <input id="ledgerServiceUrlInput" type="url" placeholder="例如：https://smart-ledger-ai.xxx.workers.dev">
+          </label>
+          <label>
+            <span>空间名</span>
+            <input id="ledgerSpaceInput" type="text" placeholder="例如：zhoutangyi-home">
+          </label>
+          <label>
+            <span>访问口令</span>
+            <input id="ledgerPassphraseInput" type="password" placeholder="设置一个只有你知道的口令">
+          </label>
+        </div>
+
+        <div class="inline-actions block-actions">
+          <button class="ghost-button" id="saveLedgerConfigBtn" type="button">保存云账本配置</button>
+          <button class="ghost-button" id="pushLedgerBtn" type="button">上传账本</button>
+          <button class="ghost-button" id="pullLedgerBtn" type="button">拉取账本</button>
+        </div>
+
+        <p id="ledgerStatus" class="status-text status-strong">还没有配置云账本空间。</p>
+      </section>
+
       <section class="panel records-panel">
         <div class="panel-head">
           <div>

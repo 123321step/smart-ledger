@@ -35,11 +35,14 @@
 1. 进入 `worker/`
 2. `npm install`
 3. `npx wrangler login`
-4. `npx wrangler secret put OPENAI_API_KEY`
-5. `npm run deploy`
+4. `npx wrangler kv namespace create LEDGER_STORE`
+5. 把返回的 KV `id` 填到 `worker/wrangler.jsonc`
+6. `npx wrangler secret put OPENAI_API_KEY`
+7. `npm run deploy`
 
-部署成功后，把 Worker 地址填回网页中的“AI 服务地址”，例如：
+部署成功后，把 Worker 地址填回网页中的：
 
-`https://smart-ledger-ai.<your-subdomain>.workers.dev/api/month-report`
+- `AI 服务地址`：`https://smart-ledger-ai.<your-subdomain>.workers.dev/api/month-report`
+- `云账本服务地址`：`https://smart-ledger-ai.<your-subdomain>.workers.dev`
 
-这样前端就不需要再保存 OpenAI Key。
+这样前端就不需要再保存 OpenAI Key，也可以直接使用“云账本空间”做多设备同步。

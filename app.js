@@ -1,6 +1,7 @@
 const STORAGE_KEY = "smart-ledger-v2-records";
 const SYNC_KEY = "smart-ledger-v2-sync";
 const AI_KEY = "smart-ledger-v2-ai";
+const LEDGER_KEY = "smart-ledger-v2-ledger";
 const GIST_FILENAME = "smart-ledger-sync.json";
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -69,6 +70,9 @@ const els = {
   aiServiceUrlInput: q("#aiServiceUrlInput"),
   openaiApiKeyInput: q("#openaiApiKeyInput"),
   openaiModelInput: q("#openaiModelInput"),
+  ledgerServiceUrlInput: q("#ledgerServiceUrlInput"),
+  ledgerSpaceInput: q("#ledgerSpaceInput"),
+  ledgerPassphraseInput: q("#ledgerPassphraseInput"),
   saveSyncConfigBtn: q("#saveSyncConfigBtn"),
   pushCloudBtn: q("#pushCloudBtn"),
   pullCloudBtn: q("#pullCloudBtn"),
@@ -76,6 +80,10 @@ const els = {
   saveAiConfigBtn: q("#saveAiConfigBtn"),
   generateAiReportBtn: q("#generateAiReportBtn"),
   aiStatus: q("#aiStatus"),
+  saveLedgerConfigBtn: q("#saveLedgerConfigBtn"),
+  pushLedgerBtn: q("#pushLedgerBtn"),
+  pullLedgerBtn: q("#pullLedgerBtn"),
+  ledgerStatus: q("#ledgerStatus"),
   scrollToEntryBtn: q("#scrollToEntryBtn"),
   installBtn: q("#installBtn")
 };
@@ -84,6 +92,7 @@ const state = {
   records: loadJson(STORAGE_KEY, []),
   sync: loadJson(SYNC_KEY, { token: "", gistId: "" }),
   ai: loadJson(AI_KEY, { serviceUrl: "", apiKey: "", model: "gpt-5" }),
+  ledger: loadJson(LEDGER_KEY, { serviceUrl: "", space: "", passphrase: "" }),
   reportType: "monthly"
 };
 
@@ -102,6 +111,9 @@ function init() {
   els.aiServiceUrlInput.value = state.ai.serviceUrl || "";
   els.openaiApiKeyInput.value = state.ai.apiKey || "";
   els.openaiModelInput.value = state.ai.model || "gpt-5";
+  els.ledgerServiceUrlInput.value = state.ledger.serviceUrl || "";
+  els.ledgerSpaceInput.value = state.ledger.space || "";
+  els.ledgerPassphraseInput.value = state.ledger.passphrase || "";
   bindEvents();
   setupVoice();
   setupInstallPrompt();
@@ -110,6 +122,7 @@ function init() {
   renderAll();
   updateSyncStatus();
   updateAiStatus();
+  updateLedgerStatus();
 }
 
 function bindEvents() {
@@ -138,6 +151,9 @@ function bindEvents() {
   els.pullCloudBtn.addEventListener("click", pullCloudBackup);
   els.saveAiConfigBtn.addEventListener("click", saveAiConfig);
   els.generateAiReportBtn.addEventListener("click", generateAiReport);
+  els.saveLedgerConfigBtn.addEventListener("click", saveLedgerConfig);
+  els.pushLedgerBtn.addEventListener("click", pushLedgerData);
+  els.pullLedgerBtn.addEventListener("click", pullLedgerData);
   els.scrollToEntryBtn.addEventListener("click", () => els.entrySection.scrollIntoView({ behavior: "smooth" }));
   els.installBtn.addEventListener("click", installApp);
   document.querySelectorAll(".chip-button").forEach((button) => {
@@ -241,6 +257,16 @@ function saveAiConfig() {
   };
   localStorage.setItem(AI_KEY, JSON.stringify(state.ai));
   updateAiStatus("AI 配置已保存在当前浏览器。");
+}
+
+function saveLedgerConfig() {
+  state.ledger = {
+    serviceUrl: trimTrailingSlash(els.ledgerServiceUrlInput.value.trim()),
+    space: els.ledgerSpaceInput.value.trim(),
+    passphrase: els.ledgerPassphraseInput.value.trim()
+  };
+  localStorage.setItem(LEDGER_KEY, JSON.stringify(state.ledger));
+  updateLedgerStatus("云账本配置已保存在当前浏览器。");
 }
 
 async function pushCloudBackup() {
@@ -571,6 +597,10 @@ function updateAiStatus(message) {
   els.aiStatus.textContent = message || (state.ai.serviceUrl ? `已启用安全 AI 服务：${state.ai.serviceUrl}` : (!state.ai.apiKey ? "还没有配置 OpenAI API 或 AI 服务地址。" : `当前为浏览器直连模式，模型：${state.ai.model}`));
 }
 
+function updateLedgerStatus(message) {
+  els.ledgerStatus.textContent = message || (!state.ledger.serviceUrl ? "还没有配置云账本空间。" : `已连接云账本空间：${state.ledger.space || "未命名空间"}`);
+}
+
 async function generateAiReport() {
   const serviceUrl = els.aiServiceUrlInput.value.trim();
   const apiKey = els.openaiApiKeyInput.value.trim();
@@ -661,6 +691,84 @@ async function requestAiReportViaService(serviceUrl, report, model) {
 
   const data = await response.json();
   return String(data.text || "").trim();
+}
+
+async function pushLedgerData() {
+  const config = getLedgerConfigFromInputs();
+  if (!config.serviceUrl || !config.space || !config.passphrase) {
+    return window.alert("请先填写云账本服务地址、空间名和访问口令。");
+  }
+
+  state.ledger = config;
+  localStorage.setItem(LEDGER_KEY, JSON.stringify(state.ledger));
+  updateLedgerStatus("正在上传账本到云端...");
+
+  try {
+    const response = await fetch(`${config.serviceUrl}/api/ledger/push`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        space: config.space,
+        passphrase: config.passphrase,
+        records: state.records
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text() || `请求失败 (${response.status})`);
+    }
+
+    const data = await response.json();
+    updateLedgerStatus(`云账本上传成功，空间：${data.space}`);
+  } catch (error) {
+    updateLedgerStatus(`云账本上传失败：${error.message}`);
+  }
+}
+
+async function pullLedgerData() {
+  const config = getLedgerConfigFromInputs();
+  if (!config.serviceUrl || !config.space || !config.passphrase) {
+    return window.alert("请先填写云账本服务地址、空间名和访问口令。");
+  }
+
+  state.ledger = config;
+  localStorage.setItem(LEDGER_KEY, JSON.stringify(state.ledger));
+  updateLedgerStatus("正在从云端拉取账本...");
+
+  try {
+    const response = await fetch(`${config.serviceUrl}/api/ledger/pull`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        space: config.space,
+        passphrase: config.passphrase
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text() || `请求失败 (${response.status})`);
+    }
+
+    const data = await response.json();
+    state.records = normalizeRecords(data.records || []);
+    persistRecords();
+    renderAll();
+    updateLedgerStatus(`云账本拉取成功，共 ${state.records.length} 天记录。`);
+  } catch (error) {
+    updateLedgerStatus(`云账本拉取失败：${error.message}`);
+  }
+}
+
+function getLedgerConfigFromInputs() {
+  return {
+    serviceUrl: trimTrailingSlash(els.ledgerServiceUrlInput.value.trim()),
+    space: els.ledgerSpaceInput.value.trim(),
+    passphrase: els.ledgerPassphraseInput.value.trim()
+  };
 }
 
 async function requestAiReportDirect(apiKey, payload) {
@@ -812,4 +920,8 @@ function debounce(fn, delay) {
     clearTimeout(timer);
     timer = setTimeout(() => fn(...args), delay);
   };
+}
+
+function trimTrailingSlash(value) {
+  return value.replace(/\/+$/, "");
 }
