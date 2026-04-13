@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>智能记账板 Pro</title>
   <meta name="theme-color" content="#c86434">
-  <meta name="description" content="支持语音录入、预算管理、AI 月报、云账本和移动端体验的智能记账应用。">
+  <meta name="description" content="极速语音记账、预算提醒、AI 月报与云账本同步。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -14,27 +14,24 @@
 </head>
 <body>
   <div class="page-shell">
-    <header class="hero panel section-card" data-section="overview">
-      <div class="hero-copy">
-        <p class="eyebrow">SMART LEDGER PRO</p>
-        <h1>你的手机记账仪表盘</h1>
-        <p class="hero-text">
-          现在它更像一个真正的移动端 App：快速记账、预算进度、搜索账本、AI 月报、云账本同步都集中在一个界面里。
-        </p>
-        <div class="hero-actions">
-          <button class="primary-button" id="scrollToEntryBtn" type="button">现在记一笔</button>
-          <button class="ghost-button" id="installBtn" type="button" hidden>安装到桌面</button>
+    <header class="hero panel section-card is-visible" data-section="home">
+      <div class="hero-top">
+        <div>
+          <p class="eyebrow">FAST LEDGER</p>
+          <h1>极速记账</h1>
+          <p class="hero-text">这一版专门为手机端做成了“打开就能记”的模式，语音、快捷模板、最近账单都放在第一屏。</p>
         </div>
+        <button class="ghost-button" id="installBtn" type="button" hidden>安装</button>
       </div>
 
       <div class="hero-grid">
         <article class="hero-stat">
-          <span>本月支出</span>
-          <strong id="monthExpense">¥0.00</strong>
+          <span>今日支出</span>
+          <strong id="todayExpense">¥0.00</strong>
         </article>
         <article class="hero-stat">
-          <span>本月收入</span>
-          <strong id="monthIncome">¥0.00</strong>
+          <span>本月支出</span>
+          <strong id="monthExpense">¥0.00</strong>
         </article>
         <article class="hero-stat">
           <span>预算告警</span>
@@ -48,83 +45,66 @@
     </header>
 
     <main class="layout">
-      <section class="panel input-panel section-card" id="entrySection" data-section="entry">
+      <section class="panel quick-panel section-card is-visible" id="entrySection" data-section="entry">
         <div class="panel-head">
           <div>
             <p class="section-kicker">QUICK ENTRY</p>
-            <h2>快速记一笔</h2>
+            <h2>一句话记一笔</h2>
           </div>
           <button class="ghost-button" id="loadTodayBtn" type="button">今天</button>
         </div>
 
-        <div class="input-grid">
+        <div class="quick-input-shell">
           <label>
             <span>日期</span>
             <input id="entryDate" type="date">
           </label>
           <label>
             <span>账户 / 付款人</span>
-            <input id="payerName" type="text" placeholder="例如：我 / 家庭账户 / 招商银行卡">
+            <input id="payerName" type="text" placeholder="例如：我 / 招商银行卡">
+          </label>
+          <label class="textarea-wrap">
+            <span>账单输入</span>
+            <textarea id="entryInput" rows="5" placeholder="直接说或输入：午饭 28 元，地铁 4 元，咖啡 32 元"></textarea>
           </label>
         </div>
 
-        <label class="textarea-wrap">
-          <span>记账内容</span>
-          <textarea id="entryInput" rows="7" placeholder="支持自然语言，例如：
-午饭 28 元
-地铁 4 元
-晚上买菜 86 元
-工资到账 12000 元"></textarea>
-        </label>
-
-        <div class="voice-row">
-          <button class="ghost-button" id="voiceBtn" type="button">开始语音录入</button>
-          <p id="voiceStatus" class="status-text">浏览器支持时，可以直接语音转文字。</p>
+        <div class="voice-row quick-voice-row">
+          <button class="primary-button big-action" id="voiceBtn" type="button">按住/点击语音记账</button>
+          <button class="ghost-button big-action" id="saveEntryBtn" type="button">立即保存</button>
         </div>
 
-        <div class="chip-row">
-          <button class="chip-button" data-template="早餐 12 元" type="button">早餐</button>
-          <button class="chip-button" data-template="午饭 28 元" type="button">午饭</button>
-          <button class="chip-button" data-template="打车 35 元" type="button">打车</button>
-          <button class="chip-button" data-template="买菜 88 元" type="button">买菜</button>
-          <button class="chip-button" data-template="工资到账 12000 元" type="button">工资</button>
-        </div>
+        <p id="voiceStatus" class="status-text status-strong">支持语音输入。说完后会自动识别金额和分类，你也可以一键保存。</p>
 
-        <div class="helper-row">
-          <p>系统会自动识别金额、分类、收入/支出，并支持保存后手动修改分类。</p>
-          <button class="primary-button" id="saveEntryBtn" type="button">保存记录</button>
+        <div class="quick-shortcuts">
+          <button class="shortcut-card" data-template="早餐 12 元" type="button">早餐</button>
+          <button class="shortcut-card" data-template="午饭 28 元" type="button">午饭</button>
+          <button class="shortcut-card" data-template="地铁 4 元" type="button">地铁</button>
+          <button class="shortcut-card" data-template="打车 35 元" type="button">打车</button>
+          <button class="shortcut-card" data-template="咖啡 25 元" type="button">咖啡</button>
+          <button class="shortcut-card" data-template="奶茶 18 元" type="button">奶茶</button>
+          <button class="shortcut-card" data-template="买菜 88 元" type="button">买菜</button>
+          <button class="shortcut-card" data-template="工资到账 12000 元" type="button">工资</button>
         </div>
 
         <div class="preview-box">
           <div class="panel-head compact">
             <h3>识别预览</h3>
-            <button class="ghost-button" id="previewBtn" type="button">刷新预览</button>
+            <button class="ghost-button" id="previewBtn" type="button">刷新</button>
           </div>
-          <div id="previewList" class="preview-list empty-state">输入账单后，这里会展示自动识别结果。</div>
+          <div id="previewList" class="preview-list empty-state">输入内容后，这里会展示自动识别结果。</div>
         </div>
       </section>
 
-      <section class="panel budget-panel section-card" data-section="budget">
+      <section class="panel today-panel section-card" data-section="today">
         <div class="panel-head">
           <div>
-            <p class="section-kicker">BUDGET</p>
-            <h2>预算中心</h2>
+            <p class="section-kicker">TODAY</p>
+            <h2>今天与最近</h2>
           </div>
-          <button class="ghost-button" id="saveBudgetBtn" type="button">保存预算</button>
         </div>
 
-        <div class="budget-form" id="budgetForm"></div>
-        <div class="budget-summary" id="budgetSummary"></div>
-      </section>
-
-      <section class="panel records-panel section-card" data-section="records">
-        <div class="panel-head">
-          <div>
-            <p class="section-kicker">LEDGER</p>
-            <h2>账本与搜索</h2>
-          </div>
-          <button class="ghost-button" id="clearAllBtn" type="button">清空本地</button>
-        </div>
+        <div class="today-summary" id="todaySummary"></div>
 
         <div class="records-toolbar">
           <label>
@@ -145,95 +125,19 @@
         <div id="recordsContainer" class="records-list empty-state">还没有记账记录，先新增一笔试试。</div>
       </section>
 
-      <section class="panel sync-panel section-card" data-section="cloud">
+      <section class="panel budget-panel section-card" data-section="budget">
         <div class="panel-head">
           <div>
-            <p class="section-kicker">CLOUD</p>
-            <h2>云同步与安全服务</h2>
+            <p class="section-kicker">BUDGET</p>
+            <h2>预算中心</h2>
           </div>
+          <button class="ghost-button" id="saveBudgetBtn" type="button">保存预算</button>
         </div>
-
-        <div class="settings-group">
-          <h3>GitHub Gist 备份</h3>
-          <div class="single-grid">
-            <label>
-              <span>GitHub Token</span>
-              <input id="gistTokenInput" type="password" placeholder="带 gist 权限的 Personal Access Token">
-            </label>
-            <label>
-              <span>Gist ID</span>
-              <input id="gistIdInput" type="text" placeholder="首次上传后自动生成">
-            </label>
-          </div>
-          <div class="inline-actions block-actions">
-            <button class="ghost-button" id="saveSyncConfigBtn" type="button">保存配置</button>
-            <button class="ghost-button" id="pushCloudBtn" type="button">上传到 Gist</button>
-            <button class="ghost-button" id="pullCloudBtn" type="button">从 Gist 拉取</button>
-          </div>
-          <p id="syncStatus" class="status-text status-strong">还没有配置云同步。</p>
-        </div>
-
-        <div class="settings-group">
-          <h3>AI 服务</h3>
-          <div class="single-grid">
-            <label>
-              <span>AI 服务地址</span>
-              <input id="aiServiceUrlInput" type="url" placeholder="例如：https://smart-ledger-ai.xxx.workers.dev/api/month-report">
-            </label>
-            <label>
-              <span>OpenAI API Key（备用）</span>
-              <input id="openaiApiKeyInput" type="password" placeholder="仅浏览器直连模式使用">
-            </label>
-            <label>
-              <span>模型</span>
-              <input id="openaiModelInput" type="text" value="gpt-5" placeholder="例如：gpt-5">
-            </label>
-          </div>
-          <div class="inline-actions block-actions">
-            <button class="ghost-button" id="saveAiConfigBtn" type="button">保存 AI 配置</button>
-            <button class="primary-button" id="generateAiReportBtn" type="button">生成 AI 月报</button>
-          </div>
-          <p id="aiStatus" class="status-text status-strong">还没有配置 OpenAI API 或 AI 服务。</p>
-        </div>
-
-        <div class="settings-group">
-          <h3>云账本空间</h3>
-          <div class="single-grid">
-            <label>
-              <span>云账本服务地址</span>
-              <input id="ledgerServiceUrlInput" type="url" placeholder="例如：https://smart-ledger-ai.xxx.workers.dev">
-            </label>
-            <label>
-              <span>空间名</span>
-              <input id="ledgerSpaceInput" type="text" placeholder="例如：zhoutangyi-home">
-            </label>
-            <label>
-              <span>访问口令</span>
-              <input id="ledgerPassphraseInput" type="password" placeholder="设置一个只有你知道的口令">
-            </label>
-          </div>
-          <div class="inline-actions block-actions">
-            <button class="ghost-button" id="saveLedgerConfigBtn" type="button">保存账本配置</button>
-            <button class="ghost-button" id="pushLedgerBtn" type="button">上传账本</button>
-            <button class="ghost-button" id="pullLedgerBtn" type="button">拉取账本</button>
-          </div>
-          <p id="ledgerStatus" class="status-text status-strong">还没有配置云账本空间。</p>
-        </div>
-
-        <div class="settings-group">
-          <h3>本地备份</h3>
-          <div class="inline-actions block-actions">
-            <button class="ghost-button" id="exportJsonBtn" type="button">导出 JSON</button>
-            <button class="ghost-button" id="importJsonBtn" type="button">导入 JSON</button>
-            <button class="ghost-button" id="exportCsvBtn" type="button">导出 CSV</button>
-            <button class="ghost-button" id="exportHtmlBtn" type="button">导出 HTML</button>
-            <button class="primary-button" id="printBtn" type="button">打印 / PDF</button>
-            <input id="importJsonInput" type="file" accept="application/json" hidden>
-          </div>
-        </div>
+        <div class="budget-form" id="budgetForm"></div>
+        <div class="budget-summary" id="budgetSummary"></div>
       </section>
 
-      <section class="panel report-panel section-card" data-section="reports">
+      <section class="panel report-panel section-card" data-section="report">
         <div class="panel-head">
           <div>
             <p class="section-kicker">REPORT</p>
@@ -243,9 +147,9 @@
 
         <div class="toolbar">
           <div class="tab-switch" id="reportTabs">
-            <button class="tab is-active" data-type="monthly" type="button">月视图</button>
-            <button class="tab" data-type="weekly" type="button">周视图</button>
-            <button class="tab" data-type="daily" type="button">日视图</button>
+            <button class="tab is-active" data-type="monthly" type="button">月</button>
+            <button class="tab" data-type="weekly" type="button">周</button>
+            <button class="tab" data-type="daily" type="button">日</button>
           </div>
           <label>
             <span>统计日期</span>
@@ -286,16 +190,105 @@
           </table>
         </div>
       </section>
+
+      <section class="panel settings-panel section-card" data-section="settings">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">SETTINGS</p>
+            <h2>同步与安全</h2>
+          </div>
+          <button class="ghost-button" id="clearAllBtn" type="button">清空本地</button>
+        </div>
+
+        <div class="settings-group">
+          <h3>Gist 云同步</h3>
+          <div class="single-grid">
+            <label>
+              <span>GitHub Token</span>
+              <input id="gistTokenInput" type="password" placeholder="带 gist 权限的 Personal Access Token">
+            </label>
+            <label>
+              <span>Gist ID</span>
+              <input id="gistIdInput" type="text" placeholder="首次上传后自动生成">
+            </label>
+          </div>
+          <div class="inline-actions block-actions">
+            <button class="ghost-button" id="saveSyncConfigBtn" type="button">保存配置</button>
+            <button class="ghost-button" id="pushCloudBtn" type="button">上传</button>
+            <button class="ghost-button" id="pullCloudBtn" type="button">拉取</button>
+          </div>
+          <p id="syncStatus" class="status-text status-strong">还没有配置 Gist 云同步。</p>
+        </div>
+
+        <div class="settings-group">
+          <h3>AI 月报</h3>
+          <div class="single-grid">
+            <label>
+              <span>AI 服务地址</span>
+              <input id="aiServiceUrlInput" type="url" placeholder="例如：https://smart-ledger-ai.xxx.workers.dev/api/month-report">
+            </label>
+            <label>
+              <span>OpenAI API Key（备用）</span>
+              <input id="openaiApiKeyInput" type="password" placeholder="仅浏览器直连模式使用">
+            </label>
+            <label>
+              <span>模型</span>
+              <input id="openaiModelInput" type="text" value="gpt-5" placeholder="例如：gpt-5">
+            </label>
+          </div>
+          <div class="inline-actions block-actions">
+            <button class="ghost-button" id="saveAiConfigBtn" type="button">保存配置</button>
+            <button class="primary-button" id="generateAiReportBtn" type="button">生成 AI 月报</button>
+          </div>
+          <p id="aiStatus" class="status-text status-strong">还没有配置 OpenAI API 或 AI 服务。</p>
+        </div>
+
+        <div class="settings-group">
+          <h3>云账本空间</h3>
+          <div class="single-grid">
+            <label>
+              <span>云账本服务地址</span>
+              <input id="ledgerServiceUrlInput" type="url" placeholder="例如：https://smart-ledger-ai.xxx.workers.dev">
+            </label>
+            <label>
+              <span>空间名</span>
+              <input id="ledgerSpaceInput" type="text" placeholder="例如：my-home">
+            </label>
+            <label>
+              <span>访问口令</span>
+              <input id="ledgerPassphraseInput" type="password" placeholder="设置一个只有你知道的口令">
+            </label>
+          </div>
+          <div class="inline-actions block-actions">
+            <button class="ghost-button" id="saveLedgerConfigBtn" type="button">保存配置</button>
+            <button class="ghost-button" id="pushLedgerBtn" type="button">上传账本</button>
+            <button class="ghost-button" id="pullLedgerBtn" type="button">拉取账本</button>
+          </div>
+          <p id="ledgerStatus" class="status-text status-strong">还没有配置云账本空间。</p>
+        </div>
+
+        <div class="settings-group">
+          <h3>本地备份</h3>
+          <div class="inline-actions block-actions">
+            <button class="ghost-button" id="exportJsonBtn" type="button">导出 JSON</button>
+            <button class="ghost-button" id="importJsonBtn" type="button">导入 JSON</button>
+            <button class="ghost-button" id="exportCsvBtn" type="button">导出 CSV</button>
+            <button class="ghost-button" id="exportHtmlBtn" type="button">导出 HTML</button>
+            <button class="primary-button" id="printBtn" type="button">打印 / PDF</button>
+            <input id="importJsonInput" type="file" accept="application/json" hidden>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
   <nav class="mobile-nav" id="mobileNav">
-    <button class="mobile-nav-btn is-active" data-target="overview" type="button">概览</button>
+    <button class="mobile-nav-btn is-active" data-target="home" type="button">首页</button>
     <button class="mobile-nav-btn" data-target="entry" type="button">记账</button>
+    <button class="mobile-nav-btn" data-target="today" type="button">账本</button>
     <button class="mobile-nav-btn" data-target="budget" type="button">预算</button>
-    <button class="mobile-nav-btn" data-target="records" type="button">账本</button>
-    <button class="mobile-nav-btn" data-target="reports" type="button">报表</button>
-    <button class="mobile-nav-btn" data-target="cloud" type="button">设置</button>
+    <button class="mobile-nav-btn" data-target="report" type="button">报表</button>
+    <button class="mobile-nav-btn" data-target="settings" type="button">设置</button>
   </nav>
 
   <div class="mobile-action-bar">

@@ -46,6 +46,8 @@ const els = {
   saveBudgetBtn: q("#saveBudgetBtn"),
   recordSearchInput: q("#recordSearchInput"),
   recordFilterSelect: q("#recordFilterSelect"),
+  todayExpense: q("#todayExpense"),
+  todaySummary: q("#todaySummary"),
   recordsContainer: q("#recordsContainer"),
   clearAllBtn: q("#clearAllBtn"),
   gistTokenInput: q("#gistTokenInput"),
@@ -264,6 +266,7 @@ function registerServiceWorker() {
 function renderAll() {
   renderPreview();
   renderBudgetSummary();
+  renderTodaySummary();
   renderRecords();
   renderReport();
   updateHeroStats();
@@ -441,13 +444,36 @@ function buildReport() {
 function updateHeroStats() {
   const monthRecords = filterRecordsByType("monthly", els.reportDate.value);
   const monthItems = monthRecords.flatMap((record) => record.items);
+  const todayRecords = filterRecordsByType("daily", els.entryDate.value || formatDate(new Date()));
+  const todayItems = todayRecords.flatMap((record) => record.items).filter((item) => item.type === "expense");
   const expenses = monthItems.filter((item) => item.type === "expense");
   const incomes = monthItems.filter((item) => item.type === "income");
   const budgetAlerts = getMonthlyBudgetUsage(els.reportDate.value).filter((item) => item.budget > 0 && item.spent > item.budget).length;
+  els.todayExpense.textContent = formatCurrency(sumAmount(todayItems));
   els.monthExpense.textContent = formatCurrency(sumAmount(expenses));
   els.monthIncome.textContent = formatCurrency(sumAmount(incomes));
   els.budgetAlerts.textContent = String(budgetAlerts);
   els.recordStreak.textContent = `${calculateStreak()}天`;
+}
+
+function renderTodaySummary() {
+  const today = els.entryDate.value || formatDate(new Date());
+  const todayRecords = filterRecordsByType("daily", today);
+  const todayItems = todayRecords.flatMap((record) => record.items);
+  const expenseItems = todayItems.filter((item) => item.type === "expense");
+  const incomeItems = todayItems.filter((item) => item.type === "income");
+  const latest = state.records.slice(0, 3).flatMap((record) => record.items.map((item) => ({ ...item, date: record.date }))).slice(0, 3);
+  els.todaySummary.innerHTML = `
+    <article class="today-card">
+      <span>今天共记录 ${todayItems.length} 笔</span>
+      <strong>${formatCurrency(sumAmount(expenseItems))}</strong>
+      <span>收入 ${formatCurrency(sumAmount(incomeItems))}</span>
+    </article>
+    <article class="today-card">
+      <span>最近三笔</span>
+      <strong>${latest.length ? latest.map((item) => `${item.text} ${formatCurrency(item.amount)}`).join(" · ") : "还没有记录"}</strong>
+    </article>
+  `;
 }
 
 function calculateStreak() {

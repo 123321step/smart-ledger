@@ -142,6 +142,13 @@ button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
 .hero-stat,
 .stat-card,
 .budget-card,
@@ -460,6 +467,51 @@ textarea {
   margin-bottom: 16px;
 }
 
+.today-summary {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.today-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(255, 248, 240, 0.84);
+  border: 1px solid rgba(120, 102, 81, 0.1);
+}
+
+.today-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.quick-panel .preview-box {
+  margin-top: 16px;
+}
+
+.quick-shortcuts {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.shortcut-card {
+  border: 0;
+  border-radius: 18px;
+  padding: 16px 12px;
+  background: rgba(255, 248, 240, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(120, 102, 81, 0.08);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.quick-voice-row .big-action {
+  min-height: 52px;
+}
+
 .settings-group {
   padding: 18px;
 }
@@ -703,6 +755,10 @@ tbody tr:nth-child(odd) {
     grid-template-columns: 1fr;
   }
 
+  .hero-top {
+    flex-direction: column;
+  }
+
   .hero-grid,
   .input-grid,
   .records-toolbar,
@@ -718,7 +774,8 @@ tbody tr:nth-child(odd) {
   .voice-row,
   .chip-row,
   .inline-actions,
-  .tab-switch {
+  .tab-switch,
+  .quick-shortcuts {
     width: 100%;
   }
 
@@ -726,7 +783,8 @@ tbody tr:nth-child(odd) {
   .voice-row > *,
   .chip-row > *,
   .inline-actions > *,
-  .tab-switch > * {
+  .tab-switch > *,
+  .quick-shortcuts > * {
     flex: 1 1 calc(50% - 8px);
   }
 
