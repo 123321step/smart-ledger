@@ -130,7 +130,9 @@ const els = {
   openQuickSheetBtn: q("#openQuickSheetBtn"),
   quickSheet: q("#quickSheet"),
   quickSheetGrid: q("#quickSheetGrid"),
-  closeQuickSheetBtn: q("#closeQuickSheetBtn")
+  closeQuickSheetBtn: q("#closeQuickSheetBtn"),
+  quickSheetRecentCategories: q("#quickSheetRecentCategories"),
+  quickSheetRecentAmounts: q("#quickSheetRecentAmounts")
 };
 
 const state = {
@@ -148,7 +150,8 @@ const state = {
   continuousVoiceEnabled: false,
   autoVoiceSaveEnabled: false,
   amountBuffer: "",
-  history: []
+  history: [],
+  swipeItemId: null
 };
 
 let recognition = null;
@@ -244,6 +247,19 @@ function bindEvents() {
     useTemplate(button.dataset.quickTemplate);
     closeQuickSheet();
   });
+  els.quickSheetRecentCategories.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-quick-template]");
+    if (!button) return;
+    useTemplate(button.dataset.quickTemplate);
+    closeQuickSheet();
+  });
+  els.quickSheetRecentAmounts.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-quick-amount]");
+    if (!button) return;
+    showSection("entry", true);
+    applyQuickAmount(button.dataset.quickAmount);
+    closeQuickSheet();
+  });
   document.querySelectorAll("[data-amount-value]").forEach((button) => {
     button.addEventListener("click", () => applyQuickAmount(button.dataset.amountValue));
   });
@@ -270,6 +286,9 @@ function bindEvents() {
   });
   els.recordsContainer.addEventListener("click", handleRecordActions);
   els.recordsContainer.addEventListener("change", handleRecordActions);
+  els.recordsContainer.addEventListener("touchstart", handleRecordSwipeStart, { passive: true });
+  els.recordsContainer.addEventListener("touchmove", handleRecordSwipeMove, { passive: true });
+  els.recordsContainer.addEventListener("touchend", handleRecordSwipeEnd, { passive: true });
   els.closeItemEditorBtn.addEventListener("click", closeItemEditor);
   els.saveItemEditorBtn.addEventListener("click", saveEditedItem);
   els.deleteItemBtn.addEventListener("click", deleteEditingItem);
@@ -419,6 +438,7 @@ function renderAll() {
   renderPreview();
   renderRecentAmountRail();
   renderSmartShortcutRail();
+  renderQuickSheetSections();
   renderHomeBudgetCard();
   renderBudgetSummary();
   renderTodaySummary();
@@ -505,18 +525,24 @@ function renderRecords() {
     record.items.forEach((item) => {
       const row = document.createElement("div");
       row.className = "record-item";
+      row.dataset.itemId = item.id;
       row.innerHTML = `
-        <div class="record-main">
-          <strong>${escapeHtml(item.text)}</strong>
-          <span>${TYPE_LABEL[item.type]} · ${CATEGORIES[item.category].label}</span>
-        </div>
-        ${renderTypePill(item.type)}
-        <div class="amount-text ${item.type}">${formatCurrency(item.amount)}</div>
-        ${renderCategorySelect(item.category, item.id)}
-        ${renderTag(item.category)}
-        <div class="record-item-actions">
-          <button class="ghost-button mini-button" data-action="edit-item" data-item-id="${item.id}" type="button">编辑</button>
-          <button class="ghost-button mini-button danger-ghost" data-action="delete-item" data-item-id="${item.id}" type="button">删除</button>
+        <div class="record-swipe-shell ${state.swipeItemId === item.id ? "is-swipe-open" : ""}" data-item-id="${item.id}">
+          <div class="record-swipe-actions">
+            <button class="ghost-button mini-button" data-action="edit-item" data-item-id="${item.id}" type="button">编辑</button>
+            <button class="ghost-button mini-button danger-ghost" data-action="delete-item" data-item-id="${item.id}" type="button">删除</button>
+          </div>
+          <div class="record-swipe-main" data-item-id="${item.id}">
+            <div class="record-main">
+              <strong>${escapeHtml(item.text)}</strong>
+              <span>${TYPE_LABEL[item.type]} · ${CATEGORIES[item.category].label}</span>
+            </div>
+            ${renderTypePill(item.type)}
+            <div class="amount-text ${item.type}">${formatCurrency(item.amount)}</div>
+            ${renderCategorySelect(item.category, item.id)}
+            ${renderTag(item.category)}
+            <div class="swipe-hint" aria-hidden="true">‹</div>
+          </div>
         </div>
       `;
       itemsContainer.appendChild(row);
@@ -540,6 +566,9 @@ function getFilteredRecords() {
 }
 
 function handleRecordActions(event) {
+  if (event.type === "click" && !event.target.closest("[data-action]") && !event.target.matches(".record-select")) {
+    closeSwipeItems();
+  }
   const itemId = event.target.dataset.itemId;
   if (!itemId) return;
 
@@ -557,12 +586,56 @@ function handleRecordActions(event) {
   if (event.type !== "click") return;
 
   if (event.target.dataset.action === "edit-item") {
+    closeSwipeItems();
     openItemEditor(itemId);
   }
 
   if (event.target.dataset.action === "delete-item") {
+    closeSwipeItems();
     removeItem(itemId, true);
   }
+}
+
+function handleRecordSwipeStart(event) {
+  if (!window.matchMedia("(max-width: 720px)").matches) return;
+  const shell = event.target.closest(".record-swipe-shell");
+  if (!shell) return;
+  const touch = event.touches[0];
+  state.swipeTouch = {
+    itemId: shell.dataset.itemId,
+    startX: touch.clientX,
+    currentX: touch.clientX
+  };
+}
+
+function handleRecordSwipeMove(event) {
+  if (!state.swipeTouch?.itemId) return;
+  const shell = event.target.closest(".record-swipe-shell") || document.querySelector(`.record-swipe-shell[data-item-id="${state.swipeTouch.itemId}"]`);
+  if (!shell) return;
+  const touch = event.touches[0];
+  state.swipeTouch.currentX = touch.clientX;
+  const deltaX = touch.clientX - state.swipeTouch.startX;
+  const offset = Math.max(Math.min(deltaX, 0), -132);
+  shell.style.setProperty("--swipe-offset", `${offset}px`);
+}
+
+function handleRecordSwipeEnd() {
+  if (!state.swipeTouch?.itemId) return;
+  const { itemId, startX, currentX } = state.swipeTouch;
+  const shell = document.querySelector(`.record-swipe-shell[data-item-id="${itemId}"]`);
+  const deltaX = currentX - startX;
+  if (shell) {
+    shell.style.removeProperty("--swipe-offset");
+  }
+  state.swipeItemId = deltaX < -48 ? itemId : null;
+  state.swipeTouch = null;
+  renderRecords();
+}
+
+function closeSwipeItems() {
+  if (!state.swipeItemId) return;
+  state.swipeItemId = null;
+  renderRecords();
 }
 
 function useTemplate(template) {
@@ -599,6 +672,17 @@ function renderRecentAmountRail() {
   els.recentAmountRail.innerHTML = amounts.length
     ? amounts.map((amount) => `<button class="recent-amount-pill" data-recent-amount="${amount}" type="button">¥${amount}</button>`).join("")
     : `<span class="budget-note">记几笔之后，这里会自动学习你常用的金额。</span>`;
+}
+
+function renderQuickSheetSections() {
+  const smartItems = getSmartShortcutSuggestions().items.slice(0, 6);
+  const amounts = getRecentAmountSuggestions().slice(0, 6);
+  els.quickSheetRecentCategories.innerHTML = smartItems.length
+    ? smartItems.map((item) => `<button class="quick-chip" data-quick-template="${escapeHtml(item.template)}" type="button">${escapeHtml(item.icon)} ${escapeHtml(item.label)}</button>`).join("")
+    : `<span class="budget-note">先记几笔，最近分类会出现在这里。</span>`;
+  els.quickSheetRecentAmounts.innerHTML = amounts.length
+    ? amounts.map((amount) => `<button class="quick-chip" data-quick-amount="${amount}" type="button">¥${amount}</button>`).join("")
+    : `<span class="budget-note">先记几笔，最近金额会出现在这里。</span>`;
 }
 
 function getRecentAmountSuggestions() {
