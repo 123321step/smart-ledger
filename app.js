@@ -22,6 +22,18 @@ const CATEGORIES = {
   other: { label: "其他", className: "tag-other", keywords: [] }
 };
 
+const CATEGORY_ICONS = {
+  food: "🍱",
+  transport: "🚇",
+  shopping: "🛍️",
+  housing: "🏠",
+  entertainment: "🎉",
+  medical: "💊",
+  learning: "📚",
+  salary: "💰",
+  other: "🧾"
+};
+
 const BUDGET_CATEGORIES = ["food", "transport", "shopping", "housing", "entertainment", "medical", "learning"];
 const TYPE_LABEL = { expense: "支出", income: "收入" };
 
@@ -56,6 +68,10 @@ const els = {
   todayTimeline: q("#todayTimeline"),
   smartHomeSummary: q("#smartHomeSummary"),
   smartShortcutRail: q("#smartShortcutRail"),
+  homeBudgetCard: q("#homeBudgetCard"),
+  homeBudgetRemaining: q("#homeBudgetRemaining"),
+  homeBudgetHint: q("#homeBudgetHint"),
+  homeBudgetProgress: q("#homeBudgetProgress"),
   recentAmountRail: q("#recentAmountRail"),
   homeQuickVoiceBtn: q("#homeQuickVoiceBtn"),
   homeQuickExpenseBtn: q("#homeQuickExpenseBtn"),
@@ -110,7 +126,11 @@ const els = {
   itemEditorCategory: q("#itemEditorCategory"),
   saveItemEditorBtn: q("#saveItemEditorBtn"),
   deleteItemBtn: q("#deleteItemBtn"),
-  appToast: q("#appToast")
+  appToast: q("#appToast"),
+  openQuickSheetBtn: q("#openQuickSheetBtn"),
+  quickSheet: q("#quickSheet"),
+  quickSheetGrid: q("#quickSheetGrid"),
+  closeQuickSheetBtn: q("#closeQuickSheetBtn")
 };
 
 const state = {
@@ -168,6 +188,7 @@ function bindEvents() {
   els.autoVoiceSaveBtn.addEventListener("click", toggleAutoVoiceSave);
   els.undoBtn.addEventListener("click", undoLastAction);
   els.mobileUndoBtn.addEventListener("click", undoLastAction);
+  els.openQuickSheetBtn.addEventListener("click", openQuickSheet);
   els.homeQuickVoiceBtn.addEventListener("click", () => {
     showSection("entry", true);
     toggleVoice();
@@ -217,6 +238,12 @@ function bindEvents() {
     if (!button) return;
     useTemplate(button.dataset.smartTemplate);
   });
+  els.quickSheetGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-quick-template]");
+    if (!button) return;
+    useTemplate(button.dataset.quickTemplate);
+    closeQuickSheet();
+  });
   document.querySelectorAll("[data-amount-value]").forEach((button) => {
     button.addEventListener("click", () => applyQuickAmount(button.dataset.amountValue));
   });
@@ -250,8 +277,13 @@ function bindEvents() {
   els.itemEditor.addEventListener("click", (event) => {
     if (event.target === els.itemEditor) closeItemEditor();
   });
+  els.closeQuickSheetBtn.addEventListener("click", closeQuickSheet);
+  els.quickSheet.addEventListener("click", (event) => {
+    if (event.target === els.quickSheet) closeQuickSheet();
+  });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !els.itemEditor.hidden) closeItemEditor();
+    if (event.key === "Escape" && !els.quickSheet.hidden) closeQuickSheet();
   });
   window.addEventListener("resize", syncMobileSection);
 }
@@ -387,6 +419,7 @@ function renderAll() {
   renderPreview();
   renderRecentAmountRail();
   renderSmartShortcutRail();
+  renderHomeBudgetCard();
   renderBudgetSummary();
   renderTodaySummary();
   renderRecords();
@@ -553,6 +586,14 @@ function openQuickCapture(type) {
   notify(type === "income" ? "已切到快速记收入。" : "已切到快速记支出。", { vibrate: false });
 }
 
+function openQuickSheet() {
+  els.quickSheet.hidden = false;
+}
+
+function closeQuickSheet() {
+  els.quickSheet.hidden = true;
+}
+
 function renderRecentAmountRail() {
   const amounts = getRecentAmountSuggestions();
   els.recentAmountRail.innerHTML = amounts.length
@@ -584,7 +625,7 @@ function renderSmartShortcutRail() {
   const suggestions = getSmartShortcutSuggestions();
   els.smartHomeSummary.textContent = suggestions.summary;
   els.smartShortcutRail.innerHTML = suggestions.items.length
-    ? suggestions.items.map((item) => `<button class="smart-quick-pill" data-smart-template="${escapeHtml(item.template)}" type="button"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.hint)}</strong></button>`).join("")
+    ? suggestions.items.map((item) => `<button class="smart-quick-pill" data-smart-template="${escapeHtml(item.template)}" type="button"><span>${escapeHtml(item.icon)} ${escapeHtml(item.label)}</span><strong>${escapeHtml(item.hint)}</strong></button>`).join("")
     : `<div class="empty-state compact-empty">先记几笔常用消费，首页会自动把最顺手的快捷入口放到这里。</div>`;
 }
 
@@ -609,6 +650,7 @@ function getSmartShortcutSuggestions() {
     .slice(0, 4)
     .map((item) => ({
       label: item.label.length > 8 ? item.label.slice(0, 8) : item.label,
+      icon: CATEGORY_ICONS[item.category] || "🧾",
       hint: `${CATEGORIES[item.category].label} · ${formatCurrency(item.amount)}`,
       template: item.template
     }));
@@ -620,15 +662,31 @@ function getSmartShortcutSuggestions() {
     };
   }
 
-  return {
-    summary: "先点一个模板开始记，系统会越来越懂你的常用场景。",
-    items: [
-      { label: "早餐", hint: "餐饮 · ¥12.00", template: "早餐 12 元" },
-      { label: "地铁", hint: "交通 · ¥4.00", template: "地铁 4 元" },
-      { label: "咖啡", hint: "餐饮 · ¥25.00", template: "咖啡 25 元" },
-      { label: "买菜", hint: "餐饮 · ¥88.00", template: "买菜 88 元" }
+    return {
+      summary: "先点一个模板开始记，系统会越来越懂你的常用场景。",
+      items: [
+      { label: "早餐", icon: "🍳", hint: "餐饮 · ¥12.00", template: "早餐 12 元" },
+      { label: "地铁", icon: "🚇", hint: "交通 · ¥4.00", template: "地铁 4 元" },
+      { label: "咖啡", icon: "☕", hint: "餐饮 · ¥25.00", template: "咖啡 25 元" },
+      { label: "买菜", icon: "🥬", hint: "餐饮 · ¥88.00", template: "买菜 88 元" }
     ]
   };
+}
+
+function renderHomeBudgetCard() {
+  const usage = getMonthlyBudgetUsage(els.reportDate.value);
+  const totalBudget = usage.reduce((sum, item) => sum + Number(item.budget || 0), 0);
+  const totalSpent = usage.reduce((sum, item) => sum + Number(item.spent || 0), 0);
+  const remaining = Math.max(totalBudget - totalSpent, 0);
+  const ratio = totalBudget > 0 ? Math.min(totalSpent / totalBudget, 1) : 0;
+  const alertCount = usage.filter((item) => item.budget > 0 && item.spent > item.budget).length;
+
+  els.homeBudgetRemaining.textContent = totalBudget > 0 ? formatCurrency(remaining) : "未设置";
+  els.homeBudgetHint.textContent = totalBudget > 0
+    ? `本月预算 ${formatCurrency(totalBudget)}，已花 ${formatCurrency(totalSpent)}${alertCount ? `，其中 ${alertCount} 类超预算` : "，目前控制稳定"}。`
+    : "先在预算中心设置分类预算，首页会自动显示本月还能花多少。";
+  els.homeBudgetProgress.style.width = `${ratio * 100}%`;
+  els.homeBudgetCard.classList.toggle("is-alert", alertCount > 0);
 }
 
 function toggleContinuousVoice() {

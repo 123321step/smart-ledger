@@ -54,6 +54,14 @@
           </div>
           <span class="budget-note" id="smartHomeSummary">先点一个最常用场景，记账会更快。</span>
         </div>
+        <div class="home-budget-card" id="homeBudgetCard">
+          <span>本月还可花</span>
+          <strong id="homeBudgetRemaining">¥0.00</strong>
+          <p id="homeBudgetHint">先设置预算，首页会自动计算本月剩余预算。</p>
+          <div class="home-budget-progress">
+            <div class="home-budget-progress-fill" id="homeBudgetProgress"></div>
+          </div>
+        </div>
         <div class="one-hand-actions">
           <button class="primary-button giant-action" id="homeQuickVoiceBtn" type="button">一键语音开记</button>
           <button class="ghost-button giant-action" id="homeQuickExpenseBtn" type="button">快速记支出</button>
@@ -351,8 +359,31 @@
 
   <div class="mobile-action-bar">
     <button class="ghost-button" id="mobileVoiceBtn" type="button">语音</button>
+    <button class="primary-button plus-button" id="openQuickSheetBtn" type="button">+</button>
     <button class="ghost-button" id="mobileUndoBtn" type="button">撤销</button>
     <button class="primary-button" id="mobileSaveBtn" type="button">保存记账</button>
+  </div>
+
+  <div class="sheet-backdrop quick-sheet-backdrop" id="quickSheet" hidden>
+    <section class="sheet-panel quick-sheet-panel" aria-labelledby="quickSheetTitle" aria-modal="true" role="dialog">
+      <div class="panel-head compact">
+        <div>
+          <p class="section-kicker">QUICK ADD</p>
+          <h3 id="quickSheetTitle">一键开记</h3>
+        </div>
+        <button class="ghost-button sheet-close" id="closeQuickSheetBtn" type="button">关闭</button>
+      </div>
+      <div class="quick-sheet-grid" id="quickSheetGrid">
+        <button class="quick-sheet-item" data-quick-template="早餐 12 元" type="button"><span>🍳</span><strong>早餐</strong></button>
+        <button class="quick-sheet-item" data-quick-template="午饭 28 元" type="button"><span>🍱</span><strong>午饭</strong></button>
+        <button class="quick-sheet-item" data-quick-template="地铁 4 元" type="button"><span>🚇</span><strong>地铁</strong></button>
+        <button class="quick-sheet-item" data-quick-template="打车 35 元" type="button"><span>🚕</span><strong>打车</strong></button>
+        <button class="quick-sheet-item" data-quick-template="咖啡 25 元" type="button"><span>☕</span><strong>咖啡</strong></button>
+        <button class="quick-sheet-item" data-quick-template="奶茶 18 元" type="button"><span>🧋</span><strong>奶茶</strong></button>
+        <button class="quick-sheet-item" data-quick-template="买菜 88 元" type="button"><span>🥬</span><strong>买菜</strong></button>
+        <button class="quick-sheet-item" data-quick-template="收入 100 元" type="button"><span>💰</span><strong>收入</strong></button>
+      </div>
+    </section>
   </div>
 
   <template id="recordTemplate">
