@@ -3,7 +3,8 @@ const STORAGE_KEYS = {
   budgets: "smart-ledger-v3-budgets",
   gist: "smart-ledger-v3-gist",
   ai: "smart-ledger-v3-ai",
-  ledger: "smart-ledger-v3-ledger"
+  ledger: "smart-ledger-v3-ledger",
+  ui: "smart-ledger-v3-ui"
 };
 
 const GIST_FILENAME = "smart-ledger-sync.json";
@@ -33,6 +34,7 @@ const els = {
   mobileVoiceBtn: q("#mobileVoiceBtn"),
   voiceStatus: q("#voiceStatus"),
   continuousVoiceBtn: q("#continuousVoiceBtn"),
+  autoVoiceSaveBtn: q("#autoVoiceSaveBtn"),
   saveEntryBtn: q("#saveEntryBtn"),
   mobileSaveBtn: q("#mobileSaveBtn"),
   undoBtn: q("#undoBtn"),
@@ -51,6 +53,8 @@ const els = {
   recordFilterSelect: q("#recordFilterSelect"),
   todayExpense: q("#todayExpense"),
   todaySummary: q("#todaySummary"),
+  smartHomeSummary: q("#smartHomeSummary"),
+  smartShortcutRail: q("#smartShortcutRail"),
   recordsContainer: q("#recordsContainer"),
   clearAllBtn: q("#clearAllBtn"),
   gistTokenInput: q("#gistTokenInput"),
@@ -100,7 +104,8 @@ const els = {
   itemEditorType: q("#itemEditorType"),
   itemEditorCategory: q("#itemEditorCategory"),
   saveItemEditorBtn: q("#saveItemEditorBtn"),
-  deleteItemBtn: q("#deleteItemBtn")
+  deleteItemBtn: q("#deleteItemBtn"),
+  appToast: q("#appToast")
 };
 
 const state = {
@@ -109,12 +114,14 @@ const state = {
   gist: loadJson(STORAGE_KEYS.gist, { token: "", gistId: "" }),
   ai: loadJson(STORAGE_KEYS.ai, { serviceUrl: "", apiKey: "", model: "gpt-5" }),
   ledger: loadJson(STORAGE_KEYS.ledger, { serviceUrl: "", space: "", passphrase: "" }),
+  ui: loadJson(STORAGE_KEYS.ui, { continuousVoiceEnabled: false, autoVoiceSaveEnabled: false }),
   reportType: "monthly",
   recordSearch: "",
   recordFilter: "all",
   mobileSection: "home",
   editingItemId: null,
   continuousVoiceEnabled: false,
+  autoVoiceSaveEnabled: false,
   amountBuffer: "",
   history: []
 };
@@ -124,6 +131,7 @@ let isListening = false;
 let deferredInstallPrompt = null;
 let voiceSessionText = "";
 let manualVoiceStop = false;
+let toastTimer = null;
 
 init();
 
@@ -131,6 +139,8 @@ function init() {
   const today = formatDate(new Date());
   els.entryDate.value = today;
   els.reportDate.value = today;
+  state.continuousVoiceEnabled = Boolean(state.ui.continuousVoiceEnabled);
+  state.autoVoiceSaveEnabled = Boolean(state.ui.autoVoiceSaveEnabled);
   hydrateSettings();
   bindEvents();
   setupVoice();
@@ -150,6 +160,7 @@ function bindEvents() {
   els.voiceBtn.addEventListener("click", toggleVoice);
   els.mobileVoiceBtn.addEventListener("click", toggleVoice);
   els.continuousVoiceBtn.addEventListener("click", toggleContinuousVoice);
+  els.autoVoiceSaveBtn.addEventListener("click", toggleAutoVoiceSave);
   els.undoBtn.addEventListener("click", undoLastAction);
   els.mobileUndoBtn.addEventListener("click", undoLastAction);
   els.loadTodayBtn.addEventListener("click", () => {
@@ -187,11 +198,13 @@ function bindEvents() {
   els.installBtn.addEventListener("click", installApp);
   document.querySelectorAll(".shortcut-card").forEach((button) => {
     button.addEventListener("click", () => {
-      state.amountBuffer = "";
-      els.entryInput.value = els.entryInput.value.trim() ? `${els.entryInput.value.trim()}\n${button.dataset.template}` : button.dataset.template;
-      renderPreview();
-      showSection("entry");
+      useTemplate(button.dataset.template);
     });
+  });
+  els.smartShortcutRail.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-smart-template]");
+    if (!button) return;
+    useTemplate(button.dataset.smartTemplate);
   });
   document.querySelectorAll("[data-amount-value]").forEach((button) => {
     button.addEventListener("click", () => applyQuickAmount(button.dataset.amountValue));
@@ -243,6 +256,7 @@ function setupVoice() {
     els.voiceBtn.disabled = true;
     els.mobileVoiceBtn.disabled = true;
     els.continuousVoiceBtn.disabled = true;
+    els.autoVoiceSaveBtn.disabled = true;
     els.voiceStatus.textContent = "当前浏览器不支持语音识别，请使用 Chrome 或 Edge。";
     return;
   }
@@ -288,10 +302,15 @@ function setupVoice() {
       return;
     }
 
-    if (transcript) {
+    const shouldFinalizeContinuousDraft = state.continuousVoiceEnabled && manualVoiceStop;
+    if (transcript || shouldFinalizeContinuousDraft) {
       const previewItems = parseLedgerInput(els.entryInput.value);
-      const shouldSave = previewItems.length > 0 && window.confirm(`识别到 ${previewItems.length} 条记录，是否立即保存到 ${els.entryDate.value}？`);
-      els.voiceStatus.textContent = shouldSave ? "识别完成，正在保存本次语音记账。" : "识别完成，已加入输入框，你可以再检查一下。";
+      const shouldSave = state.autoVoiceSaveEnabled
+        ? previewItems.length > 0
+        : previewItems.length > 0 && window.confirm(`识别到 ${previewItems.length} 条记录，是否立即保存到 ${els.entryDate.value}？`);
+      els.voiceStatus.textContent = shouldSave
+        ? state.autoVoiceSaveEnabled ? "识别完成，正在自动保存本次语音记账。" : "识别完成，正在保存本次语音记账。"
+        : "识别完成，已加入输入框，你可以再检查一下。";
       if (shouldSave) saveCurrentEntry({ silent: true, fromVoice: true });
     } else if (isListening) {
       els.voiceStatus.textContent = "语音录入结束，没有识别到有效内容。";
@@ -350,6 +369,7 @@ function registerServiceWorker() {
 
 function renderAll() {
   renderPreview();
+  renderSmartShortcutRail();
   renderBudgetSummary();
   renderTodaySummary();
   renderRecords();
@@ -495,12 +515,84 @@ function handleRecordActions(event) {
   }
 }
 
+function useTemplate(template) {
+  state.amountBuffer = "";
+  els.entryInput.value = els.entryInput.value.trim() ? `${els.entryInput.value.trim()}\n${template}` : template;
+  renderPreview();
+  showSection("entry");
+  notify("已加入一条快捷记账。", { vibrate: false });
+}
+
+function renderSmartShortcutRail() {
+  const suggestions = getSmartShortcutSuggestions();
+  els.smartHomeSummary.textContent = suggestions.summary;
+  els.smartShortcutRail.innerHTML = suggestions.items.length
+    ? suggestions.items.map((item) => `<button class="smart-quick-pill" data-smart-template="${escapeHtml(item.template)}" type="button"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.hint)}</strong></button>`).join("")
+    : `<div class="empty-state compact-empty">先记几笔常用消费，首页会自动把最顺手的快捷入口放到这里。</div>`;
+}
+
+function getSmartShortcutSuggestions() {
+  const recentItems = state.records
+    .flatMap((record) => record.items.map((item) => ({ ...item, date: record.date })))
+    .filter((item) => item.type === "expense")
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 40);
+
+  const usage = new Map();
+  recentItems.forEach((item) => {
+    const key = `${item.category}:${item.text}`;
+    const current = usage.get(key) || { label: item.text, template: item.text, amount: item.amount, count: 0, category: item.category };
+    current.count += 1;
+    current.amount = item.amount;
+    usage.set(key, current);
+  });
+
+  const ranked = [...usage.values()]
+    .sort((a, b) => b.count - a.count || b.amount - a.amount)
+    .slice(0, 4)
+    .map((item) => ({
+      label: item.label.length > 8 ? item.label.slice(0, 8) : item.label,
+      hint: `${CATEGORIES[item.category].label} · ${formatCurrency(item.amount)}`,
+      template: item.template
+    }));
+
+  if (ranked.length) {
+    return {
+      summary: `已根据最近使用频率，优先给你 ${ranked.length} 个最常用快捷记账。`,
+      items: ranked
+    };
+  }
+
+  return {
+    summary: "先点一个模板开始记，系统会越来越懂你的常用场景。",
+    items: [
+      { label: "早餐", hint: "餐饮 · ¥12.00", template: "早餐 12 元" },
+      { label: "地铁", hint: "交通 · ¥4.00", template: "地铁 4 元" },
+      { label: "咖啡", hint: "餐饮 · ¥25.00", template: "咖啡 25 元" },
+      { label: "买菜", hint: "餐饮 · ¥88.00", template: "买菜 88 元" }
+    ]
+  };
+}
+
 function toggleContinuousVoice() {
   state.continuousVoiceEnabled = !state.continuousVoiceEnabled;
+  persistUiPrefs();
   updateQuickActionButtons();
   els.voiceStatus.textContent = state.continuousVoiceEnabled
     ? "连续语音已开启。每说完一笔会自动追加，点停止后统一确认保存。"
     : "连续语音已关闭。现在恢复为单次语音确认。";
+  notify(state.voiceStatus?.textContent || "连续语音模式已切换。", { vibrate: false });
+}
+
+function toggleAutoVoiceSave() {
+  state.autoVoiceSaveEnabled = !state.autoVoiceSaveEnabled;
+  persistUiPrefs();
+  updateQuickActionButtons();
+  const message = state.autoVoiceSaveEnabled
+    ? "语音自动保存已开启。说完后会直接入账。"
+    : "语音自动保存已关闭。说完后会先让你确认。";
+  els.voiceStatus.textContent = message;
+  notify(message, { vibrate: false });
 }
 
 function applyQuickAmount(amountValue) {
@@ -719,11 +811,10 @@ function saveCurrentEntry(options = {}) {
     showSection("today");
   }
   state.amountBuffer = "";
-  if (!silent) {
-    window.alert("记账记录已保存。");
-  } else if (fromVoice) {
+  if (fromVoice) {
     els.voiceStatus.textContent = `语音记账已保存，共 ${items.length} 条。`;
   }
+  notify(fromVoice ? `已保存 ${items.length} 条语音记账。` : `已保存 ${items.length} 条记录。`);
   return true;
 }
 
@@ -761,6 +852,7 @@ function deleteRecord(date) {
   persistRecords();
   if (els.entryDate.value === date) loadEntryForDate(date);
   renderAll();
+  notify("已删除这一天的记录。");
 }
 
 function openItemEditor(itemId) {
@@ -815,6 +907,7 @@ function saveEditedItem() {
   closeItemEditor();
   loadEntryForDate(els.entryDate.value);
   renderAll();
+  notify("这笔记录已更新。");
 }
 
 function deleteEditingItem() {
@@ -840,6 +933,7 @@ function removeItem(itemId, askConfirm = false) {
   persistRecords();
   if (currentDate) loadEntryForDate(currentDate);
   renderAll();
+  notify("已删除这一笔记录。");
   return true;
 }
 
@@ -852,6 +946,7 @@ function clearAllData() {
   els.entryInput.value = "";
   els.payerName.value = "";
   renderAll();
+  notify("本地数据已清空。");
 }
 
 function saveGistConfig() {
@@ -1132,6 +1227,9 @@ function updateQuickActionButtons() {
   const continuousLabel = `连续语音：${state.continuousVoiceEnabled ? "开" : "关"}`;
   els.continuousVoiceBtn.textContent = continuousLabel;
   els.continuousVoiceBtn.classList.toggle("is-listening", state.continuousVoiceEnabled);
+  const autoVoiceLabel = `语音自动保存：${state.autoVoiceSaveEnabled ? "开" : "关"}`;
+  els.autoVoiceSaveBtn.textContent = autoVoiceLabel;
+  els.autoVoiceSaveBtn.classList.toggle("is-listening", state.autoVoiceSaveEnabled);
   const canUndo = state.history.length > 0;
   els.undoBtn.disabled = !canUndo;
   els.undoBtn.textContent = canUndo ? "撤销上一笔" : "暂无可撤销";
@@ -1167,6 +1265,22 @@ function undoLastAction() {
   state.amountBuffer = "";
   renderAll();
   els.voiceStatus.textContent = "已撤销上一笔操作。";
+  notify("已撤销上一笔操作。");
+}
+
+function notify(message, options = {}) {
+  const { vibrate = true } = options;
+  els.appToast.textContent = message;
+  els.appToast.hidden = false;
+  els.appToast.classList.add("is-visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    els.appToast.classList.remove("is-visible");
+    els.appToast.hidden = true;
+  }, 2200);
+  if (vibrate && "vibrate" in navigator) {
+    navigator.vibrate(18);
+  }
 }
 
 function renderItemEditorCategoryOptions() {
@@ -1211,6 +1325,14 @@ function normalizeRecords(records) {
 
 function persistRecords() {
   localStorage.setItem(STORAGE_KEYS.records, JSON.stringify(state.records));
+}
+
+function persistUiPrefs() {
+  state.ui = {
+    continuousVoiceEnabled: state.continuousVoiceEnabled,
+    autoVoiceSaveEnabled: state.autoVoiceSaveEnabled
+  };
+  localStorage.setItem(STORAGE_KEYS.ui, JSON.stringify(state.ui));
 }
 
 function createDefaultBudgets() {

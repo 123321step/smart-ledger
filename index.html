@@ -45,6 +45,17 @@
           <strong id="recordStreak">0天</strong>
         </article>
       </div>
+
+      <section class="smart-home-card">
+        <div class="panel-head compact">
+          <div>
+            <p class="section-kicker">SMART START</p>
+            <h3>今天快速记账</h3>
+          </div>
+          <span class="budget-note" id="smartHomeSummary">先点一个最常用场景，记账会更快。</span>
+        </div>
+        <div class="smart-shortcut-rail" id="smartShortcutRail"></div>
+      </section>
     </header>
 
     <main class="layout">
@@ -81,6 +92,7 @@
 
         <div class="quick-tools">
           <button class="ghost-button" id="continuousVoiceBtn" type="button">连续语音：关</button>
+          <button class="ghost-button" id="autoVoiceSaveBtn" type="button">语音自动保存：关</button>
           <button class="ghost-button" id="undoBtn" type="button">撤销上一笔</button>
         </div>
 
@@ -318,6 +330,8 @@
       </section>
     </main>
   </div>
+
+  <div class="app-toast" id="appToast" hidden></div>
 
   <nav class="mobile-nav" id="mobileNav">
     <button class="mobile-nav-btn is-active" data-target="home" type="button">首页</button>
