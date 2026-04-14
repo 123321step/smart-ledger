@@ -79,6 +79,11 @@
 
         <p id="voiceStatus" class="status-text status-strong">支持语音输入。说完后会自动识别金额和分类，你也可以一键保存。</p>
 
+        <div class="quick-tools">
+          <button class="ghost-button" id="continuousVoiceBtn" type="button">连续语音：关</button>
+          <button class="ghost-button" id="undoBtn" type="button">撤销上一笔</button>
+        </div>
+
         <div class="quick-shortcuts">
           <button class="shortcut-card" data-template="早餐 12 元" type="button">早餐</button>
           <button class="shortcut-card" data-template="午饭 28 元" type="button">午饭</button>
@@ -88,6 +93,35 @@
           <button class="shortcut-card" data-template="奶茶 18 元" type="button">奶茶</button>
           <button class="shortcut-card" data-template="买菜 88 元" type="button">买菜</button>
           <button class="shortcut-card" data-template="工资到账 12000 元" type="button">工资</button>
+        </div>
+
+        <div class="quick-amounts">
+          <div class="panel-head compact">
+            <h3>极速金额</h3>
+            <span class="budget-note">先点模板，再点金额会更快</span>
+          </div>
+          <div class="amount-shortcuts">
+            <button class="amount-chip" data-amount-value="10" type="button">¥10</button>
+            <button class="amount-chip" data-amount-value="20" type="button">¥20</button>
+            <button class="amount-chip" data-amount-value="30" type="button">¥30</button>
+            <button class="amount-chip" data-amount-value="50" type="button">¥50</button>
+            <button class="amount-chip" data-amount-value="100" type="button">¥100</button>
+            <button class="amount-chip" data-amount-value="200" type="button">¥200</button>
+          </div>
+          <div class="amount-pad" id="amountPad">
+            <button class="amount-key" data-key="1" type="button">1</button>
+            <button class="amount-key" data-key="2" type="button">2</button>
+            <button class="amount-key" data-key="3" type="button">3</button>
+            <button class="amount-key" data-key="4" type="button">4</button>
+            <button class="amount-key" data-key="5" type="button">5</button>
+            <button class="amount-key" data-key="6" type="button">6</button>
+            <button class="amount-key" data-key="7" type="button">7</button>
+            <button class="amount-key" data-key="8" type="button">8</button>
+            <button class="amount-key" data-key="9" type="button">9</button>
+            <button class="amount-key is-muted" data-key="." type="button">.</button>
+            <button class="amount-key" data-key="0" type="button">0</button>
+            <button class="amount-key is-muted" data-key="backspace" type="button">删除</button>
+          </div>
         </div>
 
         <div class="preview-box">
@@ -296,6 +330,7 @@
 
   <div class="mobile-action-bar">
     <button class="ghost-button" id="mobileVoiceBtn" type="button">语音</button>
+    <button class="ghost-button" id="mobileUndoBtn" type="button">撤销</button>
     <button class="primary-button" id="mobileSaveBtn" type="button">保存记账</button>
   </div>
 

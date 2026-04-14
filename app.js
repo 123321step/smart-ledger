@@ -32,10 +32,14 @@ const els = {
   voiceBtn: q("#voiceBtn"),
   mobileVoiceBtn: q("#mobileVoiceBtn"),
   voiceStatus: q("#voiceStatus"),
+  continuousVoiceBtn: q("#continuousVoiceBtn"),
   saveEntryBtn: q("#saveEntryBtn"),
   mobileSaveBtn: q("#mobileSaveBtn"),
+  undoBtn: q("#undoBtn"),
+  mobileUndoBtn: q("#mobileUndoBtn"),
   previewBtn: q("#previewBtn"),
   previewList: q("#previewList"),
+  amountPad: q("#amountPad"),
   loadTodayBtn: q("#loadTodayBtn"),
   monthExpense: q("#monthExpense"),
   budgetAlerts: q("#budgetAlerts"),
@@ -109,13 +113,17 @@ const state = {
   recordSearch: "",
   recordFilter: "all",
   mobileSection: "home",
-  editingItemId: null
+  editingItemId: null,
+  continuousVoiceEnabled: false,
+  amountBuffer: "",
+  history: []
 };
 
 let recognition = null;
 let isListening = false;
 let deferredInstallPrompt = null;
 let voiceSessionText = "";
+let manualVoiceStop = false;
 
 init();
 
@@ -130,6 +138,7 @@ function init() {
   registerServiceWorker();
   loadEntryForDate(today);
   renderBudgetForm();
+  renderItemEditorCategoryOptions();
   renderAll();
 }
 
@@ -140,6 +149,9 @@ function bindEvents() {
   els.mobileSaveBtn.addEventListener("click", () => saveCurrentEntry());
   els.voiceBtn.addEventListener("click", toggleVoice);
   els.mobileVoiceBtn.addEventListener("click", toggleVoice);
+  els.continuousVoiceBtn.addEventListener("click", toggleContinuousVoice);
+  els.undoBtn.addEventListener("click", undoLastAction);
+  els.mobileUndoBtn.addEventListener("click", undoLastAction);
   els.loadTodayBtn.addEventListener("click", () => {
     const today = formatDate(new Date());
     els.entryDate.value = today;
@@ -175,10 +187,19 @@ function bindEvents() {
   els.installBtn.addEventListener("click", installApp);
   document.querySelectorAll(".shortcut-card").forEach((button) => {
     button.addEventListener("click", () => {
+      state.amountBuffer = "";
       els.entryInput.value = els.entryInput.value.trim() ? `${els.entryInput.value.trim()}\n${button.dataset.template}` : button.dataset.template;
       renderPreview();
       showSection("entry");
     });
+  });
+  document.querySelectorAll("[data-amount-value]").forEach((button) => {
+    button.addEventListener("click", () => applyQuickAmount(button.dataset.amountValue));
+  });
+  els.amountPad.addEventListener("click", (event) => {
+    const key = event.target.dataset.key;
+    if (!key) return;
+    updateAmountBuffer(key);
   });
   els.reportTabs.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -221,6 +242,7 @@ function setupVoice() {
   if (!SpeechRecognition) {
     els.voiceBtn.disabled = true;
     els.mobileVoiceBtn.disabled = true;
+    els.continuousVoiceBtn.disabled = true;
     els.voiceStatus.textContent = "当前浏览器不支持语音识别，请使用 Chrome 或 Edge。";
     return;
   }
@@ -230,6 +252,7 @@ function setupVoice() {
   recognition.continuous = false;
   recognition.onstart = () => {
     isListening = true;
+    manualVoiceStop = false;
     voiceSessionText = "";
     setVoiceButtons(true);
     els.voiceStatus.textContent = "正在听写，请直接说出消费内容。";
@@ -250,9 +273,22 @@ function setupVoice() {
   };
   recognition.onend = () => {
     const transcript = voiceSessionText.trim();
+    if (transcript) appendVoiceTranscript(transcript);
+
+    if (state.continuousVoiceEnabled && !manualVoiceStop) {
+      els.voiceStatus.textContent = transcript ? `已追加：${transcript}，继续说下一笔。` : "继续语音记账中，请说下一笔。";
+      voiceSessionText = "";
+      setTimeout(() => {
+        if (state.continuousVoiceEnabled && !manualVoiceStop) {
+          try {
+            recognition.start();
+          } catch {}
+        }
+      }, 250);
+      return;
+    }
+
     if (transcript) {
-      els.entryInput.value = els.entryInput.value.trim() ? `${els.entryInput.value.trim()}\n${transcript}` : transcript;
-      renderPreview();
       const previewItems = parseLedgerInput(els.entryInput.value);
       const shouldSave = previewItems.length > 0 && window.confirm(`识别到 ${previewItems.length} 条记录，是否立即保存到 ${els.entryDate.value}？`);
       els.voiceStatus.textContent = shouldSave ? "识别完成，正在保存本次语音记账。" : "识别完成，已加入输入框，你可以再检查一下。";
@@ -261,19 +297,27 @@ function setupVoice() {
       els.voiceStatus.textContent = "语音录入结束，没有识别到有效内容。";
     }
     voiceSessionText = "";
+    manualVoiceStop = false;
     setVoiceButtons(false);
   };
 }
 
 function toggleVoice() {
   if (!recognition) return;
-  if (isListening) recognition.stop();
-  else recognition.start();
+  if (isListening) {
+    manualVoiceStop = true;
+    recognition.stop();
+  } else {
+    manualVoiceStop = false;
+    recognition.start();
+  }
 }
 
 function setVoiceButtons(listening) {
   isListening = listening;
-  [[els.voiceBtn, listening ? "停止语音录入" : "开始语音录入"], [els.mobileVoiceBtn, listening ? "停止" : "语音"]].forEach(([button, text]) => {
+  const desktopText = listening ? (state.continuousVoiceEnabled ? "停止连续语音" : "停止语音录入") : "开始语音录入";
+  const mobileText = listening ? "停止" : "语音";
+  [[els.voiceBtn, desktopText], [els.mobileVoiceBtn, mobileText]].forEach(([button, text]) => {
     button.textContent = text;
     button.classList.toggle("is-listening", listening);
   });
@@ -312,6 +356,7 @@ function renderAll() {
   renderReport();
   updateHeroStats();
   updateStatuses();
+  updateQuickActionButtons();
   syncMobileSection();
 }
 
@@ -448,6 +493,74 @@ function handleRecordActions(event) {
   if (event.target.dataset.action === "delete-item") {
     removeItem(itemId, true);
   }
+}
+
+function toggleContinuousVoice() {
+  state.continuousVoiceEnabled = !state.continuousVoiceEnabled;
+  updateQuickActionButtons();
+  els.voiceStatus.textContent = state.continuousVoiceEnabled
+    ? "连续语音已开启。每说完一笔会自动追加，点停止后统一确认保存。"
+    : "连续语音已关闭。现在恢复为单次语音确认。";
+}
+
+function applyQuickAmount(amountValue) {
+  state.amountBuffer = String(amountValue);
+  applyAmountBufferToEntry();
+}
+
+function updateAmountBuffer(key) {
+  if (key === "backspace") {
+    state.amountBuffer = state.amountBuffer.slice(0, -1);
+  } else if (key === ".") {
+    if (!state.amountBuffer || state.amountBuffer.includes(".")) return;
+    state.amountBuffer += ".";
+  } else {
+    if (state.amountBuffer.includes(".") && state.amountBuffer.split(".")[1].length >= 2) return;
+    state.amountBuffer += key;
+  }
+
+  if (!state.amountBuffer) {
+    clearAmountFromEntry();
+    els.voiceStatus.textContent = "金额输入已清空。";
+    return;
+  }
+
+  applyAmountBufferToEntry();
+}
+
+function applyAmountBufferToEntry() {
+  const amountValue = normalizeAmountBuffer(state.amountBuffer);
+  if (!amountValue) return;
+  const lines = els.entryInput.value.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) {
+    lines.push(`支出 ${amountValue} 元`);
+  } else {
+    const lastLine = lines[lines.length - 1];
+    if (/(-?\d+(?:\.\d{1,2})?)/.test(lastLine)) {
+      lines[lines.length - 1] = lastLine.replace(/(-?\d+(?:\.\d{1,2})?)(\s*(元|块|块钱|rmb|RMB))?/, `${amountValue} 元`);
+    } else {
+      lines[lines.length - 1] = `${lastLine} ${amountValue} 元`;
+    }
+  }
+  els.entryInput.value = lines.join("\n");
+  renderPreview();
+  showSection("entry");
+  els.voiceStatus.textContent = `已填入金额 ${amountValue} 元。`;
+}
+
+function appendVoiceTranscript(transcript) {
+  state.amountBuffer = "";
+  els.entryInput.value = els.entryInput.value.trim() ? `${els.entryInput.value.trim()}\n${transcript}` : transcript;
+  renderPreview();
+}
+
+function clearAmountFromEntry() {
+  const lines = els.entryInput.value.split("\n");
+  if (!lines.length) return;
+  const lastIndex = lines.length - 1;
+  lines[lastIndex] = lines[lastIndex].replace(/\s*(-?\d+(?:\.\d{1,2})?)\s*(元|块|块钱|rmb|RMB)?/i, "").trim();
+  els.entryInput.value = lines.filter((line) => line.trim()).join("\n");
+  renderPreview();
 }
 
 function renderReport() {
@@ -594,6 +707,7 @@ function saveCurrentEntry(options = {}) {
   const payer = els.payerName.value.trim();
   const items = parseLedgerInput(els.entryInput.value);
   if (!date || !items.length) return window.alert("请选择日期，并至少输入一条包含金额的账单内容。");
+  pushHistory("save-entry");
   const next = { date, payer, items };
   const index = state.records.findIndex((item) => item.date === date);
   if (index >= 0) state.records[index] = next;
@@ -604,6 +718,7 @@ function saveCurrentEntry(options = {}) {
   if (fromVoice && window.matchMedia("(max-width: 720px)").matches) {
     showSection("today");
   }
+  state.amountBuffer = "";
   if (!silent) {
     window.alert("记账记录已保存。");
   } else if (fromVoice) {
@@ -635,11 +750,13 @@ function loadEntryForDate(date) {
   const record = state.records.find((item) => item.date === date);
   els.payerName.value = record?.payer || "";
   els.entryInput.value = record ? record.items.map((item) => item.text).join("\n") : "";
+  state.amountBuffer = "";
   renderPreview();
 }
 
 function deleteRecord(date) {
   if (!window.confirm(`确认删除 ${date} 的记账记录吗？`)) return;
+  pushHistory("delete-day");
   state.records = state.records.filter((record) => record.date !== date);
   persistRecords();
   if (els.entryDate.value === date) loadEntryForDate(date);
@@ -688,6 +805,7 @@ function saveEditedItem() {
     window.alert("请先填写内容和金额。");
     return;
   }
+  pushHistory("edit-item");
   state.records = state.records.map((record) => ({
     ...record,
     items: record.items.map((item) => item.id === itemId ? { ...item, text, amount, type, category } : item)
@@ -708,6 +826,7 @@ function deleteEditingItem() {
 function removeItem(itemId, askConfirm = false) {
   if (askConfirm && !window.confirm("确认删除这一笔记录吗？")) return false;
   const currentDate = els.entryDate.value;
+  pushHistory("delete-item");
   state.records = state.records
     .map((record) => ({
       ...record,
@@ -726,6 +845,7 @@ function removeItem(itemId, askConfirm = false) {
 
 function clearAllData() {
   if (!window.confirm("确认清空所有本地记账数据吗？此操作不可撤销。")) return;
+  pushHistory("clear-all");
   state.records = [];
   persistRecords();
   closeItemEditor();
@@ -770,6 +890,7 @@ async function pullCloudBackup() {
   try {
     const gist = await gistRequest(`https://api.github.com/gists/${gistId}`, token, "GET");
     const data = JSON.parse(gist.files?.[GIST_FILENAME]?.content || "{}");
+    pushHistory("pull-gist");
     state.records = normalizeRecords(data.records || []);
     persistRecords();
     renderAll();
@@ -919,6 +1040,7 @@ async function pullLedgerData() {
     });
     if (!response.ok) throw new Error(await response.text() || `请求失败 (${response.status})`);
     const data = await response.json();
+    pushHistory("pull-ledger");
     state.records = normalizeRecords(data.records || []);
     persistRecords();
     renderAll();
@@ -945,6 +1067,7 @@ async function importJson(event) {
   if (!file) return;
   try {
     const data = JSON.parse(await file.text());
+    pushHistory("import-json");
     state.records = normalizeRecords(data.records || []);
     persistRecords();
     renderAll();
@@ -1005,6 +1128,51 @@ function syncMobileSection() {
   });
 }
 
+function updateQuickActionButtons() {
+  const continuousLabel = `连续语音：${state.continuousVoiceEnabled ? "开" : "关"}`;
+  els.continuousVoiceBtn.textContent = continuousLabel;
+  els.continuousVoiceBtn.classList.toggle("is-listening", state.continuousVoiceEnabled);
+  const canUndo = state.history.length > 0;
+  els.undoBtn.disabled = !canUndo;
+  els.undoBtn.textContent = canUndo ? "撤销上一笔" : "暂无可撤销";
+  els.mobileUndoBtn.disabled = !canUndo;
+  els.mobileUndoBtn.textContent = canUndo ? "撤销" : "撤销";
+}
+
+function pushHistory(reason = "") {
+  state.history.push({
+    reason,
+    records: JSON.parse(JSON.stringify(state.records)),
+    entryDate: els.entryDate.value,
+    payerName: els.payerName.value,
+    entryInput: els.entryInput.value
+  });
+  if (state.history.length > 20) state.history.shift();
+  updateQuickActionButtons();
+}
+
+function undoLastAction() {
+  const snapshot = state.history.pop();
+  if (!snapshot) {
+    els.voiceStatus.textContent = "当前还没有可撤销的操作。";
+    updateQuickActionButtons();
+    return;
+  }
+  state.records = normalizeRecords(snapshot.records || []);
+  persistRecords();
+  closeItemEditor();
+  els.entryDate.value = snapshot.entryDate || formatDate(new Date());
+  els.payerName.value = snapshot.payerName || "";
+  els.entryInput.value = snapshot.entryInput || "";
+  state.amountBuffer = "";
+  renderAll();
+  els.voiceStatus.textContent = "已撤销上一笔操作。";
+}
+
+function renderItemEditorCategoryOptions() {
+  syncItemEditorCategory();
+}
+
 function findItemById(itemId) {
   for (const record of state.records) {
     const item = record.items.find((entry) => entry.id === itemId);
@@ -1061,6 +1229,11 @@ function q(selector) { return document.querySelector(selector); }
 function createId() { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`; }
 function trimTrailingSlash(value) { return value.replace(/\/+$/, ""); }
 function formatCurrency(value) { return `¥${Number(value || 0).toFixed(2)}`; }
+function normalizeAmountBuffer(value) {
+  const normalized = String(value || "").replace(/[^\d.]/g, "").replace(/^0+(?=\d)/, "");
+  if (!normalized || normalized === ".") return "";
+  return Number(normalized).toString();
+}
 function formatDate(date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
 function formatDisplayDate(dateString) { return formatDate(new Date(`${dateString}T00:00:00`)); }
 function formatShortDate(dateString) { const date = new Date(`${dateString}T00:00:00`); return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`; }
