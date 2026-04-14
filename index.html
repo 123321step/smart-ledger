@@ -64,8 +64,7 @@
         </div>
         <div class="one-hand-actions">
           <button class="primary-button giant-action" id="homeQuickVoiceBtn" type="button">一键语音开记</button>
-          <button class="ghost-button giant-action" id="homeQuickExpenseBtn" type="button">快速记支出</button>
-          <button class="ghost-button giant-action" id="homeQuickIncomeBtn" type="button">快速记收入</button>
+          <button class="ghost-button giant-action" id="homeQuickSheetBtn" type="button">一键快记</button>
         </div>
         <div class="home-amount-rail" id="recentAmountRail"></div>
         <div class="smart-shortcut-rail" id="smartShortcutRail"></div>
@@ -105,7 +104,6 @@
         <p id="voiceStatus" class="status-text status-strong">支持语音输入。说完后会自动识别金额和分类，你也可以一键保存。</p>
 
         <div class="quick-tools">
-          <button class="ghost-button" id="continuousVoiceBtn" type="button">连续语音：关</button>
           <button class="ghost-button" id="autoVoiceSaveBtn" type="button">语音自动保存：关</button>
           <button class="ghost-button" id="undoBtn" type="button">撤销上一笔</button>
         </div>
@@ -115,10 +113,6 @@
           <button class="shortcut-card" data-template="午饭 28 元" type="button">午饭</button>
           <button class="shortcut-card" data-template="地铁 4 元" type="button">地铁</button>
           <button class="shortcut-card" data-template="打车 35 元" type="button">打车</button>
-          <button class="shortcut-card" data-template="咖啡 25 元" type="button">咖啡</button>
-          <button class="shortcut-card" data-template="奶茶 18 元" type="button">奶茶</button>
-          <button class="shortcut-card" data-template="买菜 88 元" type="button">买菜</button>
-          <button class="shortcut-card" data-template="工资到账 12000 元" type="button">工资</button>
         </div>
 
         <div class="quick-amounts">
@@ -133,20 +127,6 @@
             <button class="amount-chip" data-amount-value="50" type="button">¥50</button>
             <button class="amount-chip" data-amount-value="100" type="button">¥100</button>
             <button class="amount-chip" data-amount-value="200" type="button">¥200</button>
-          </div>
-          <div class="amount-pad" id="amountPad">
-            <button class="amount-key" data-key="1" type="button">1</button>
-            <button class="amount-key" data-key="2" type="button">2</button>
-            <button class="amount-key" data-key="3" type="button">3</button>
-            <button class="amount-key" data-key="4" type="button">4</button>
-            <button class="amount-key" data-key="5" type="button">5</button>
-            <button class="amount-key" data-key="6" type="button">6</button>
-            <button class="amount-key" data-key="7" type="button">7</button>
-            <button class="amount-key" data-key="8" type="button">8</button>
-            <button class="amount-key" data-key="9" type="button">9</button>
-            <button class="amount-key is-muted" data-key="." type="button">.</button>
-            <button class="amount-key" data-key="0" type="button">0</button>
-            <button class="amount-key is-muted" data-key="backspace" type="button">删除</button>
           </div>
         </div>
 

@@ -202,8 +202,8 @@ button:disabled {
 }
 
 .giant-action {
-  flex: 1 1 calc(33.33% - 8px);
-  min-height: 58px;
+  flex: 1 1 calc(50% - 8px);
+  min-height: 60px;
 }
 
 .home-amount-rail {
@@ -768,11 +768,6 @@ textarea {
 }
 
 .amount-shortcuts {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 12px;
-}
-
-.amount-pad {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 12px;
 }

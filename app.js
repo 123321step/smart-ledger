@@ -74,8 +74,7 @@ const els = {
   homeBudgetProgress: q("#homeBudgetProgress"),
   recentAmountRail: q("#recentAmountRail"),
   homeQuickVoiceBtn: q("#homeQuickVoiceBtn"),
-  homeQuickExpenseBtn: q("#homeQuickExpenseBtn"),
-  homeQuickIncomeBtn: q("#homeQuickIncomeBtn"),
+  homeQuickSheetBtn: q("#homeQuickSheetBtn"),
   recordsContainer: q("#recordsContainer"),
   clearAllBtn: q("#clearAllBtn"),
   gistTokenInput: q("#gistTokenInput"),
@@ -189,7 +188,7 @@ function bindEvents() {
   els.mobileSaveBtn.addEventListener("click", () => saveCurrentEntry());
   els.voiceBtn.addEventListener("click", toggleVoice);
   els.mobileVoiceBtn.addEventListener("click", toggleVoice);
-  els.continuousVoiceBtn.addEventListener("click", toggleContinuousVoice);
+  els.continuousVoiceBtn?.addEventListener("click", toggleContinuousVoice);
   els.autoVoiceSaveBtn.addEventListener("click", toggleAutoVoiceSave);
   els.undoBtn.addEventListener("click", undoLastAction);
   els.mobileUndoBtn.addEventListener("click", undoLastAction);
@@ -198,8 +197,7 @@ function bindEvents() {
     showSection("entry", true);
     toggleVoice();
   });
-  els.homeQuickExpenseBtn.addEventListener("click", () => openQuickCapture("expense"));
-  els.homeQuickIncomeBtn.addEventListener("click", () => openQuickCapture("income"));
+  els.homeQuickSheetBtn?.addEventListener("click", openQuickSheet);
   els.loadTodayBtn.addEventListener("click", () => {
     const today = formatDate(new Date());
     els.entryDate.value = today;
@@ -276,7 +274,7 @@ function bindEvents() {
     if (!button) return;
     applyQuickAmount(button.dataset.recentAmount);
   });
-  els.amountPad.addEventListener("click", (event) => {
+  els.amountPad?.addEventListener("click", (event) => {
     const key = event.target.dataset.key;
     if (!key) return;
     updateAmountBuffer(key);
@@ -330,7 +328,7 @@ function setupVoice() {
   if (!SpeechRecognition) {
     els.voiceBtn.disabled = true;
     els.mobileVoiceBtn.disabled = true;
-    els.continuousVoiceBtn.disabled = true;
+    if (els.continuousVoiceBtn) els.continuousVoiceBtn.disabled = true;
     els.autoVoiceSaveBtn.disabled = true;
     els.voiceStatus.textContent = "当前浏览器不支持语音识别，请使用 Chrome 或 Edge。";
     return;
@@ -1532,8 +1530,10 @@ function syncMobileSection() {
 
 function updateQuickActionButtons() {
   const continuousLabel = `连续语音：${state.continuousVoiceEnabled ? "开" : "关"}`;
-  els.continuousVoiceBtn.textContent = continuousLabel;
-  els.continuousVoiceBtn.classList.toggle("is-listening", state.continuousVoiceEnabled);
+  if (els.continuousVoiceBtn) {
+    els.continuousVoiceBtn.textContent = continuousLabel;
+    els.continuousVoiceBtn.classList.toggle("is-listening", state.continuousVoiceEnabled);
+  }
   const autoVoiceLabel = `语音自动保存：${state.autoVoiceSaveEnabled ? "开" : "关"}`;
   els.autoVoiceSaveBtn.textContent = autoVoiceLabel;
   els.autoVoiceSaveBtn.classList.toggle("is-listening", state.autoVoiceSaveEnabled);
