@@ -132,7 +132,8 @@ const els = {
   quickSheetGrid: q("#quickSheetGrid"),
   closeQuickSheetBtn: q("#closeQuickSheetBtn"),
   quickSheetRecentCategories: q("#quickSheetRecentCategories"),
-  quickSheetRecentAmounts: q("#quickSheetRecentAmounts")
+  quickSheetRecentAmounts: q("#quickSheetRecentAmounts"),
+  quickSheetCombos: q("#quickSheetCombos")
 };
 
 const state = {
@@ -160,6 +161,7 @@ let deferredInstallPrompt = null;
 let voiceSessionText = "";
 let manualVoiceStop = false;
 let toastTimer = null;
+let swipeCloseTimer = null;
 
 init();
 
@@ -258,6 +260,12 @@ function bindEvents() {
     if (!button) return;
     showSection("entry", true);
     applyQuickAmount(button.dataset.quickAmount);
+    closeQuickSheet();
+  });
+  els.quickSheetCombos.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-quick-template]");
+    if (!button) return;
+    useTemplate(button.dataset.quickTemplate);
     closeQuickSheet();
   });
   document.querySelectorAll("[data-amount-value]").forEach((button) => {
@@ -600,6 +608,7 @@ function handleRecordSwipeStart(event) {
   if (!window.matchMedia("(max-width: 720px)").matches) return;
   const shell = event.target.closest(".record-swipe-shell");
   if (!shell) return;
+  clearSwipeCloseTimer();
   const touch = event.touches[0];
   state.swipeTouch = {
     itemId: shell.dataset.itemId,
@@ -627,15 +636,42 @@ function handleRecordSwipeEnd() {
   if (shell) {
     shell.style.removeProperty("--swipe-offset");
   }
-  state.swipeItemId = deltaX < -48 ? itemId : null;
+  if (deltaX < -48) {
+    state.swipeItemId = itemId;
+    scheduleSwipeClose();
+  } else if (deltaX > 32 && state.swipeItemId === itemId) {
+    state.swipeItemId = null;
+    clearSwipeCloseTimer();
+  } else if (Math.abs(deltaX) < 12) {
+    state.swipeItemId = state.swipeItemId === itemId ? null : state.swipeItemId;
+  } else {
+    state.swipeItemId = null;
+    clearSwipeCloseTimer();
+  }
   state.swipeTouch = null;
   renderRecords();
 }
 
 function closeSwipeItems() {
   if (!state.swipeItemId) return;
+  clearSwipeCloseTimer();
   state.swipeItemId = null;
   renderRecords();
+}
+
+function scheduleSwipeClose() {
+  clearSwipeCloseTimer();
+  swipeCloseTimer = setTimeout(() => {
+    if (state.swipeItemId) {
+      state.swipeItemId = null;
+      renderRecords();
+    }
+  }, 3600);
+}
+
+function clearSwipeCloseTimer() {
+  clearTimeout(swipeCloseTimer);
+  swipeCloseTimer = null;
 }
 
 function useTemplate(template) {
@@ -677,12 +713,16 @@ function renderRecentAmountRail() {
 function renderQuickSheetSections() {
   const smartItems = getSmartShortcutSuggestions().items.slice(0, 6);
   const amounts = getRecentAmountSuggestions().slice(0, 6);
+  const combos = getQuickComboSuggestions();
   els.quickSheetRecentCategories.innerHTML = smartItems.length
     ? smartItems.map((item) => `<button class="quick-chip" data-quick-template="${escapeHtml(item.template)}" type="button">${escapeHtml(item.icon)} ${escapeHtml(item.label)}</button>`).join("")
     : `<span class="budget-note">先记几笔，最近分类会出现在这里。</span>`;
   els.quickSheetRecentAmounts.innerHTML = amounts.length
     ? amounts.map((amount) => `<button class="quick-chip" data-quick-amount="${amount}" type="button">¥${amount}</button>`).join("")
     : `<span class="budget-note">先记几笔，最近金额会出现在这里。</span>`;
+  els.quickSheetCombos.innerHTML = combos.length
+    ? combos.map((item) => `<button class="quick-combo-card" data-quick-template="${escapeHtml(item.template)}" type="button"><span>${escapeHtml(item.icon)} ${escapeHtml(item.label)}</span><strong>${escapeHtml(item.amountText)}</strong></button>`).join("")
+    : `<div class="empty-state compact-empty">先记几笔具体消费，这里会自动生成一键组合。</div>`;
 }
 
 function getRecentAmountSuggestions() {
@@ -703,6 +743,31 @@ function getRecentAmountSuggestions() {
     .sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]))
     .slice(0, 5)
     .map(([amount]) => normalizeAmountBuffer(amount));
+}
+
+function getQuickComboSuggestions() {
+  const recentItems = state.records
+    .flatMap((record) => record.items)
+    .filter((item) => item.type === "expense")
+    .slice(0, 30);
+
+  const seen = new Set();
+  const combos = [];
+
+  recentItems.forEach((item) => {
+    const amount = normalizeAmountBuffer(item.amount);
+    const key = `${item.category}:${amount}`;
+    if (!amount || seen.has(key)) return;
+    seen.add(key);
+    combos.push({
+      icon: CATEGORY_ICONS[item.category] || "🧾",
+      label: item.text.length > 8 ? item.text.slice(0, 8) : item.text,
+      amountText: formatCurrency(item.amount),
+      template: item.text
+    });
+  });
+
+  return combos.slice(0, 6);
 }
 
 function renderSmartShortcutRail() {
