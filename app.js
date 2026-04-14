@@ -53,8 +53,13 @@ const els = {
   recordFilterSelect: q("#recordFilterSelect"),
   todayExpense: q("#todayExpense"),
   todaySummary: q("#todaySummary"),
+  todayTimeline: q("#todayTimeline"),
   smartHomeSummary: q("#smartHomeSummary"),
   smartShortcutRail: q("#smartShortcutRail"),
+  recentAmountRail: q("#recentAmountRail"),
+  homeQuickVoiceBtn: q("#homeQuickVoiceBtn"),
+  homeQuickExpenseBtn: q("#homeQuickExpenseBtn"),
+  homeQuickIncomeBtn: q("#homeQuickIncomeBtn"),
   recordsContainer: q("#recordsContainer"),
   clearAllBtn: q("#clearAllBtn"),
   gistTokenInput: q("#gistTokenInput"),
@@ -163,6 +168,12 @@ function bindEvents() {
   els.autoVoiceSaveBtn.addEventListener("click", toggleAutoVoiceSave);
   els.undoBtn.addEventListener("click", undoLastAction);
   els.mobileUndoBtn.addEventListener("click", undoLastAction);
+  els.homeQuickVoiceBtn.addEventListener("click", () => {
+    showSection("entry", true);
+    toggleVoice();
+  });
+  els.homeQuickExpenseBtn.addEventListener("click", () => openQuickCapture("expense"));
+  els.homeQuickIncomeBtn.addEventListener("click", () => openQuickCapture("income"));
   els.loadTodayBtn.addEventListener("click", () => {
     const today = formatDate(new Date());
     els.entryDate.value = today;
@@ -208,6 +219,11 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-amount-value]").forEach((button) => {
     button.addEventListener("click", () => applyQuickAmount(button.dataset.amountValue));
+  });
+  els.recentAmountRail.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-recent-amount]");
+    if (!button) return;
+    applyQuickAmount(button.dataset.recentAmount);
   });
   els.amountPad.addEventListener("click", (event) => {
     const key = event.target.dataset.key;
@@ -369,6 +385,7 @@ function registerServiceWorker() {
 
 function renderAll() {
   renderPreview();
+  renderRecentAmountRail();
   renderSmartShortcutRail();
   renderBudgetSummary();
   renderTodaySummary();
@@ -521,6 +538,46 @@ function useTemplate(template) {
   renderPreview();
   showSection("entry");
   notify("已加入一条快捷记账。", { vibrate: false });
+}
+
+function openQuickCapture(type) {
+  const starter = type === "income" ? "收入 " : "支出 ";
+  showSection("entry", true);
+  if (!els.entryInput.value.trim()) {
+    els.entryInput.value = starter;
+  } else if (!els.entryInput.value.trim().endsWith(starter.trim())) {
+    els.entryInput.value = `${els.entryInput.value.trim()}\n${starter}`;
+  }
+  renderPreview();
+  els.entryInput.focus();
+  notify(type === "income" ? "已切到快速记收入。" : "已切到快速记支出。", { vibrate: false });
+}
+
+function renderRecentAmountRail() {
+  const amounts = getRecentAmountSuggestions();
+  els.recentAmountRail.innerHTML = amounts.length
+    ? amounts.map((amount) => `<button class="recent-amount-pill" data-recent-amount="${amount}" type="button">¥${amount}</button>`).join("")
+    : `<span class="budget-note">记几笔之后，这里会自动学习你常用的金额。</span>`;
+}
+
+function getRecentAmountSuggestions() {
+  const recentExpenseAmounts = state.records
+    .flatMap((record) => record.items)
+    .filter((item) => item.type === "expense")
+    .map((item) => Number(item.amount))
+    .filter((amount) => amount > 0)
+    .slice(0, 60);
+
+  const counts = new Map();
+  recentExpenseAmounts.forEach((amount) => {
+    const key = amount.toFixed(2);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]))
+    .slice(0, 5)
+    .map(([amount]) => normalizeAmountBuffer(amount));
 }
 
 function renderSmartShortcutRail() {
@@ -746,6 +803,37 @@ function renderTodaySummary() {
       <strong>${latest.length ? latest.map((item) => `${item.text} ${formatCurrency(item.amount)}`).join(" · ") : "还没有记录"}</strong>
     </article>
   `;
+  renderTodayTimeline(todayItems);
+}
+
+function renderTodayTimeline(todayItems) {
+  if (!todayItems.length) {
+    els.todayTimeline.innerHTML = '<div class="empty-state compact-empty">今天还没有形成时间线，先记一笔看看。</div>';
+    return;
+  }
+
+  const ordered = [...todayItems]
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .slice(0, 6);
+
+  els.todayTimeline.innerHTML = `
+    <div class="panel-head compact">
+      <h3>今日时间线</h3>
+      <span class="budget-note">最近 ${ordered.length} 笔</span>
+    </div>
+    <div class="timeline-list">
+      ${ordered.map((item, index) => `
+        <article class="timeline-item">
+          <div class="timeline-marker">${index + 1}</div>
+          <div class="timeline-body">
+            <strong>${escapeHtml(item.text)}</strong>
+            <span>${TYPE_LABEL[item.type]} · ${CATEGORIES[item.category].label} · ${formatTimelineTime(item.createdAt)}</span>
+          </div>
+          <div class="amount-text ${item.type}">${formatCurrency(item.amount)}</div>
+        </article>
+      `).join("")}
+    </div>
+  `;
 }
 
 function calculateStreak() {
@@ -819,16 +907,28 @@ function saveCurrentEntry(options = {}) {
 }
 
 function parseLedgerInput(rawText) {
-  return rawText.split(/\n|；|;|。|，/).map((line) => line.trim()).filter(Boolean).map(parseLine).filter(Boolean);
+  return rawText
+    .split(/\n|；|;|。|，/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => parseLine(line, index))
+    .filter(Boolean);
 }
 
-function parseLine(line) {
+function parseLine(line, index = 0) {
   const amountMatch = line.match(/(-?\d+(?:\.\d{1,2})?)\s*(元|块|块钱|rmb|RMB)?/);
   if (!amountMatch) return null;
   const amount = Math.abs(Number(amountMatch[1]));
   if (!amount) return null;
   const type = /(工资|薪资|奖金|报销|退款|收入|到账|收到|返现|红包)/.test(line) ? "income" : "expense";
-  return { id: createId(), text: line.replace(/\s+/g, " ").trim(), amount, type, category: classifyLine(line, type) };
+  return {
+    id: createId(),
+    text: line.replace(/\s+/g, " ").trim(),
+    amount,
+    type,
+    category: classifyLine(line, type),
+    createdAt: new Date(Date.now() + index * 1000).toISOString()
+  };
 }
 
 function classifyLine(text, type) {
@@ -1319,7 +1419,14 @@ function normalizeRecords(records) {
   return records.map((record) => ({
     date: record.date,
     payer: record.payer || "",
-    items: (record.items || []).map((item) => ({ id: item.id || createId(), text: String(item.text || "").trim(), amount: Number(item.amount || 0), type: item.type === "income" ? "income" : "expense", category: CATEGORIES[item.category] ? item.category : "other" })).filter((item) => item.text && item.amount > 0)
+    items: (record.items || []).map((item) => ({
+      id: item.id || createId(),
+      text: String(item.text || "").trim(),
+      amount: Number(item.amount || 0),
+      type: item.type === "income" ? "income" : "expense",
+      category: CATEGORIES[item.category] ? item.category : "other",
+      createdAt: item.createdAt || `${record.date}T00:00:00`
+    })).filter((item) => item.text && item.amount > 0)
   })).filter((record) => record.date && record.items.length).sort((a, b) => b.date.localeCompare(a.date));
 }
 
@@ -1355,6 +1462,11 @@ function normalizeAmountBuffer(value) {
   const normalized = String(value || "").replace(/[^\d.]/g, "").replace(/^0+(?=\d)/, "");
   if (!normalized || normalized === ".") return "";
   return Number(normalized).toString();
+}
+function formatTimelineTime(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "刚刚";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 function formatDate(date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
 function formatDisplayDate(dateString) { return formatDate(new Date(`${dateString}T00:00:00`)); }
