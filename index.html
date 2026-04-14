@@ -312,6 +312,24 @@
         </div>
 
         <div class="settings-group">
+          <h3>安卓版 App</h3>
+          <div class="single-grid">
+            <label>
+              <span>当前版本</span>
+              <input id="appVersionInput" type="text" value="网页版" readonly>
+            </label>
+            <label>
+              <span>更新源</span>
+              <input id="appUpdateSourceInput" type="url" value="https://123321step.github.io/smart-ledger/android-app/latest.json" readonly>
+            </label>
+          </div>
+          <div class="inline-actions block-actions">
+            <button class="primary-button" id="checkAppUpdateBtn" type="button">检查更新</button>
+          </div>
+          <p id="appUpdateStatus" class="status-text status-strong">网页版不会安装 APK；安卓 App 内会自动检查更新。</p>
+        </div>
+
+        <div class="settings-group">
           <h3>本地备份</h3>
           <div class="inline-actions block-actions">
             <button class="ghost-button" id="exportJsonBtn" type="button">导出 JSON</button>

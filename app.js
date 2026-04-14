@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
 
 const GIST_FILENAME = "smart-ledger-sync.json";
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const APP_UPDATE_MANIFEST_URL = "https://123321step.github.io/smart-ledger/android-app/latest.json";
 
 const CATEGORIES = {
   food: { label: "餐饮", className: "tag-food", keywords: ["早餐", "午饭", "晚饭", "夜宵", "咖啡", "奶茶", "外卖", "买菜", "水果", "零食"] },
@@ -96,6 +97,10 @@ const els = {
   pushLedgerBtn: q("#pushLedgerBtn"),
   pullLedgerBtn: q("#pullLedgerBtn"),
   ledgerStatus: q("#ledgerStatus"),
+  appVersionInput: q("#appVersionInput"),
+  appUpdateSourceInput: q("#appUpdateSourceInput"),
+  checkAppUpdateBtn: q("#checkAppUpdateBtn"),
+  appUpdateStatus: q("#appUpdateStatus"),
   exportJsonBtn: q("#exportJsonBtn"),
   importJsonBtn: q("#importJsonBtn"),
   importJsonInput: q("#importJsonInput"),
@@ -151,7 +156,15 @@ const state = {
   autoVoiceSaveEnabled: false,
   amountBuffer: "",
   history: [],
-  swipeItemId: null
+  swipeItemId: null,
+  appMeta: {
+    isNative: false,
+    version: "web",
+    build: "0",
+    updateAvailable: false,
+    latestVersion: "",
+    downloadUrl: ""
+  }
 };
 
 let recognition = null;
@@ -175,6 +188,7 @@ function init() {
   setupVoice();
   setupInstallPrompt();
   registerServiceWorker();
+  setupNativeApp();
   loadEntryForDate(today);
   renderBudgetForm();
   renderItemEditorCategoryOptions();
@@ -222,6 +236,7 @@ function bindEvents() {
   els.saveLedgerConfigBtn.addEventListener("click", saveLedgerConfig);
   els.pushLedgerBtn.addEventListener("click", pushLedgerData);
   els.pullLedgerBtn.addEventListener("click", pullLedgerData);
+  els.checkAppUpdateBtn?.addEventListener("click", () => checkAppUpdate({ silent: false, manual: true }));
   els.exportJsonBtn.addEventListener("click", exportJson);
   els.importJsonBtn.addEventListener("click", () => els.importJsonInput.click());
   els.importJsonInput.addEventListener("change", importJson);
@@ -322,6 +337,7 @@ function hydrateSettings() {
   els.ledgerServiceUrlInput.value = state.ledger.serviceUrl || "";
   els.ledgerSpaceInput.value = state.ledger.space || "";
   els.ledgerPassphraseInput.value = state.ledger.passphrase || "";
+  if (els.appUpdateSourceInput) els.appUpdateSourceInput.value = APP_UPDATE_MANIFEST_URL;
 }
 
 function setupVoice() {
@@ -436,8 +452,35 @@ async function installApp() {
 }
 
 function registerServiceWorker() {
+  if (isNativeApp()) return;
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {}));
+}
+
+async function setupNativeApp() {
+  updateStatuses("app");
+  if (!isNativeApp()) return;
+
+  els.installBtn.hidden = true;
+
+  try {
+    const appPlugin = getCapacitorPlugin("App");
+    const info = await appPlugin?.getInfo?.();
+    if (info) {
+      state.appMeta.isNative = true;
+      state.appMeta.version = info.version || "1.0.0";
+      state.appMeta.build = String(info.build || "1");
+      updateStatuses("app");
+    }
+
+    await checkAppUpdate({ silent: true });
+
+    appPlugin?.addListener?.("appStateChange", ({ isActive }) => {
+      if (isActive) checkAppUpdate({ silent: true });
+    });
+  } catch (error) {
+    updateStatuses("app", `App 信息读取失败：${error.message}`);
+  }
 }
 
 function renderAll() {
@@ -1510,6 +1553,16 @@ function updateStatuses(scope, message) {
   if (!scope || scope === "sync") els.syncStatus.textContent = scope === "sync" && message ? message : (!state.gist.token ? "还没有配置 Gist 云同步。" : (!state.gist.gistId ? "Token 已保存，首次上传时会自动创建 Gist。" : `当前 Gist：${state.gist.gistId}`));
   if (!scope || scope === "ai") els.aiStatus.textContent = scope === "ai" && message ? message : (state.ai.serviceUrl ? `已启用安全 AI 服务：${state.ai.serviceUrl}` : (!state.ai.apiKey ? "还没有配置 OpenAI API 或 AI 服务。" : `当前为浏览器直连模式，模型：${state.ai.model}`));
   if (!scope || scope === "ledger") els.ledgerStatus.textContent = scope === "ledger" && message ? message : (!state.ledger.serviceUrl ? "还没有配置云账本空间。" : `当前空间：${state.ledger.space || "未命名空间"}`);
+  if (!scope || scope === "app") {
+    if (els.appVersionInput) {
+      els.appVersionInput.value = state.appMeta.isNative ? `Android ${state.appMeta.version} (${state.appMeta.build})` : "网页版";
+    }
+    els.appUpdateStatus.textContent = scope === "app" && message ? message : (
+      state.appMeta.isNative
+        ? (state.appMeta.updateAvailable ? `发现新版本 ${state.appMeta.latestVersion}，可直接下载安装。` : `当前已安装 Android ${state.appMeta.version} (${state.appMeta.build})。`)
+        : "网页版不会安装 APK；安卓 App 内会自动检查更新。"
+    );
+  }
 }
 
 function showSection(section, scroll = false) {
@@ -1659,6 +1712,80 @@ function loadJson(key, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function isNativeApp() {
+  return Boolean(window.Capacitor?.isNativePlatform?.() || window.Capacitor?.getPlatform?.() === "android");
+}
+
+function getCapacitorPlugin(name) {
+  return window.Capacitor?.Plugins?.[name];
+}
+
+async function checkAppUpdate(options = {}) {
+  const { silent = false, manual = false } = options;
+  if (!isNativeApp()) {
+    updateStatuses("app");
+    if (manual) notify("请在安卓版 App 内检查更新。", { vibrate: false });
+    return false;
+  }
+
+  try {
+    updateStatuses("app", "正在检查安卓新版本...");
+    const manifestUrl = `${APP_UPDATE_MANIFEST_URL}?t=${Date.now()}`;
+    const response = await fetch(manifestUrl, { cache: "no-store" });
+    if (!response.ok) throw new Error(`请求失败 (${response.status})`);
+    const manifest = await response.json();
+    const currentBuild = Number(state.appMeta.build || 0);
+    const latestBuild = Number(manifest.versionCode || 0);
+    const latestVersion = String(manifest.versionName || "");
+    const apkUrl = String(manifest.apkUrl || "").trim();
+
+    state.appMeta.latestVersion = latestVersion;
+    state.appMeta.downloadUrl = apkUrl;
+    state.appMeta.updateAvailable = latestBuild > currentBuild || isVersionNewer(latestVersion, state.appMeta.version);
+
+    if (!state.appMeta.updateAvailable) {
+      updateStatuses("app", `当前已是最新版 ${state.appMeta.version}。`);
+      if (manual) notify(`当前已是最新版 ${state.appMeta.version}。`, { vibrate: false });
+      return false;
+    }
+
+    const notes = Array.isArray(manifest.notes) ? manifest.notes.filter(Boolean).join("\n") : "";
+    updateStatuses("app", `发现新版本 ${latestVersion}，准备跳转下载。`);
+    if (!silent) {
+      const confirmed = window.confirm(`发现新版本 ${latestVersion}。\n\n${notes || "点击确定后将打开下载链接。"}\n\n是否现在下载更新？`);
+      if (confirmed) await openAppUpdate(apkUrl);
+    }
+    return true;
+  } catch (error) {
+    updateStatuses("app", `检查更新失败：${error.message}`);
+    if (!silent) notify(`检查更新失败：${error.message}`, { vibrate: false });
+    return false;
+  }
+}
+
+async function openAppUpdate(url) {
+  if (!url) throw new Error("更新下载地址为空");
+  const browserPlugin = getCapacitorPlugin("Browser");
+  if (browserPlugin?.open) {
+    await browserPlugin.open({ url });
+    return;
+  }
+  window.open(url, "_blank", "noopener");
+}
+
+function isVersionNewer(latestVersion, currentVersion) {
+  const latest = String(latestVersion || "").split(".").map((part) => Number(part || 0));
+  const current = String(currentVersion || "").split(".").map((part) => Number(part || 0));
+  const length = Math.max(latest.length, current.length);
+  for (let index = 0; index < length; index += 1) {
+    const latestValue = latest[index] || 0;
+    const currentValue = current[index] || 0;
+    if (latestValue > currentValue) return true;
+    if (latestValue < currentValue) return false;
+  }
+  return false;
 }
 
 function q(selector) { return document.querySelector(selector); }

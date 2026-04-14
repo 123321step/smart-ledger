@@ -1,0 +1,6 @@
+{
+  "appId": "io.github.zhoutangyi.smartledger",
+  "appName": "智能记账板",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

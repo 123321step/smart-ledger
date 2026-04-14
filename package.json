@@ -1,0 +1,22 @@
+{
+  "name": "smart-ledger-pro",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Smart ledger web app packaged for Android with update detection.",
+  "scripts": {
+    "build:web": "node scripts/build-web.mjs",
+    "android:copy": "npm run build:web && npx cap copy android",
+    "android:sync": "npm run build:web && npx cap sync android",
+    "android:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug",
+    "android:release": "npm run android:sync && cd android && gradlew.bat assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/app": "^7.0.2",
+    "@capacitor/browser": "^7.0.2",
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
+}

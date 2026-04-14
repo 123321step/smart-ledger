@@ -20,6 +20,30 @@
 
 项目已包含 GitHub Pages 自动部署工作流，推送到 `main` 后会自动发布静态站点。
 
+## 安卓 App
+
+项目已接入 Capacitor，可打包为安卓 APK，并支持在 App 内检测更新。
+
+### 本地构建
+
+1. `npm install`
+2. `npm run android:debug`
+
+构建完成后，APK 默认在：
+
+- `android/app/build/outputs/apk/debug/app-debug.apk`
+
+### 更新检测
+
+- 更新清单：`android-app/latest.json`
+- App 启动后会自动检查该清单
+- 当 `versionCode` 或 `versionName` 更高时，App 会提示下载安装新 APK
+
+发布新版本时，更新这两个内容即可：
+
+1. 把新 APK 放到 `android-app/downloads/`
+2. 修改 `android-app/latest.json` 中的版本号、下载地址和说明
+
 ## AI 模式
 
 ### 方式 1：浏览器直连 OpenAI
