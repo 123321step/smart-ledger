@@ -7,3 +7,5 @@ dist/
 android/.gradle/
 android/local.properties
 android/app/build/
+android/keystore.properties
+android/signing/

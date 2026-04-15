@@ -1,11 +1,11 @@
 {
-  "versionCode": 1,
-  "versionName": "1.0.0",
-  "apkUrl": "https://123321step.github.io/smart-ledger/android-app/downloads/smart-ledger-v1.0.0.apk",
-  "publishedAt": "2026-04-15T00:00:00+08:00",
+  "versionCode": 2,
+  "versionName": "1.0.1",
+  "apkUrl": "https://123321step.github.io/smart-ledger/android-app/downloads/smart-ledger-v1.0.1.apk",
+  "publishedAt": "2026-04-15T02:15:00+08:00",
   "notes": [
-    "首个安卓版发布",
-    "支持语音记账、报表、导出与云同步",
-    "支持 App 内检查更新并跳转下载"
+    "重做了安卓 App 图标和启动页",
+    "切换为正式签名版安装包",
+    "继续支持 App 内自动检查更新"
   ]
 }

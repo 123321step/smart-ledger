@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#C86434</color>
+    <color name="colorPrimaryDark">#8F3E1B</color>
+    <color name="colorAccent">#F5B54C</color>
+    <color name="splashBackground">#FFF6E7</color>
+    <color name="splashAccent">#C86434</color>
+    <color name="splashAccentDark">#8F3E1B</color>
+    <color name="splashPaper">#FFFDF8</color>
+    <color name="splashInk">#4B2412</color>
+    <color name="splashGold">#F1B64A</color>
+</resources>

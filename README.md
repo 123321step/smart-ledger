@@ -33,6 +33,23 @@
 
 - `android/app/build/outputs/apk/debug/app-debug.apk`
 
+### 正式签名版
+
+正式签名使用本机私有密钥：
+
+- `android/keystore.properties`
+- `android/signing/smart-ledger-release.jks`
+
+这两个文件不会提交到仓库，但后续升级必须保留，否则新版本无法覆盖安装旧版本。
+
+构建命令：
+
+1. `npm run android:release`
+
+构建完成后，正式安装包默认在：
+
+- `android/app/build/outputs/apk/release/app-release.apk`
+
 ### 更新检测
 
 - 更新清单：`android-app/latest.json`

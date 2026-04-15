@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">智能记账板</string>
     <string name="title_activity_main">智能记账板</string>
+    <string name="app_tagline">轻快记一笔</string>
     <string name="package_name">io.github.zhoutangyi.smartledger</string>
     <string name="custom_url_scheme">io.github.zhoutangyi.smartledger</string>
 </resources>
