@@ -116,6 +116,7 @@ const els = {
   categoryChart: q("#categoryChart"),
   timelineChart: q("#timelineChart"),
   reportText: q("#reportText"),
+  reportSummaryCards: q("#reportSummaryCards"),
   summaryTable: q("#summaryTable"),
   recordTemplate: q("#recordTemplate"),
   scrollToEntryBtn: q("#scrollToEntryBtn"),
@@ -1041,6 +1042,7 @@ function renderReport() {
   els.insightCards.innerHTML = report.insights.map((item) => `<article class="insight-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.body)}</p></article>`).join("");
   renderBarChart(els.categoryChart, report.categoryCounts, "当前区间还没有可展示的支出分类数据。");
   renderBarChart(els.timelineChart, report.timeline, "当前区间还没有可展示的日期消费走势。", true);
+  renderReportSummaryCards(report);
   renderSummaryTable(report);
   els.reportText.value = report.text;
 }
@@ -1609,13 +1611,54 @@ function renderSummaryTable(report) {
   els.summaryTable.querySelector("tbody").innerHTML = report.summaryRows.length ? report.summaryRows.map((row) => `<tr><td>${formatDisplayDate(row.date)}</td><td>${escapeHtml(row.payer)}</td><td>${formatCurrency(row.expenseAmount)}</td><td>${formatCurrency(row.incomeAmount)}</td><td>${escapeHtml(row.categories)}</td><td>${escapeHtml(row.items).replace(/\n/g, "<br>")}</td></tr>`).join("") : '<tr><td colspan="6">当前区间还没有记账记录。</td></tr>';
 }
 
+function renderReportSummaryCards(report) {
+  if (!els.reportSummaryCards) return;
+  if (!report.summaryRows.length) {
+    els.reportSummaryCards.innerHTML = '<div class="empty-state">No report cards for this range yet.</div>';
+    return;
+  }
+
+  els.reportSummaryCards.innerHTML = report.summaryRows.map((row) => {
+    const detailLines = row.items.split("\n").filter(Boolean);
+    const previewLines = detailLines.slice(0, 3);
+    const remainCount = Math.max(detailLines.length - previewLines.length, 0);
+    return `
+      <article class="report-day-card">
+        <div class="report-day-head">
+          <div>
+            <span class="report-day-date">${formatDisplayDate(row.date)}</span>
+            <strong>${escapeHtml(row.payer === "-" ? "No account" : row.payer)}</strong>
+          </div>
+          <div class="report-day-totals">
+            <span class="report-day-total expense">-${formatCurrency(row.expenseAmount)}</span>
+            <span class="report-day-total income">+${formatCurrency(row.incomeAmount)}</span>
+          </div>
+        </div>
+        <p class="report-day-category">${escapeHtml(row.categories)}</p>
+        <div class="report-day-lines">
+          ${previewLines.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
+          ${remainCount ? `<span class="report-day-more">${remainCount} more item(s) in the full table.</span>` : ""}
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
 function renderBarChart(root, rows, emptyText, alt = false) {
   if (!rows.length) {
     root.innerHTML = `<div class="empty-state">${emptyText}</div>`;
     return;
   }
   const max = Math.max(...rows.map((item) => item.amount));
-  root.innerHTML = rows.map((item) => `<div class="bar-row"><div class="bar-label">${escapeHtml(item.label)}</div><div class="bar-track"><div class="bar-fill${alt ? " alt" : ""}" style="width:${item.amount / max * 100}%"></div></div><div class="bar-value">${formatCurrency(item.amount)}</div></div>`).join("");
+  root.innerHTML = rows.map((item) => `
+    <div class="bar-row">
+      <div class="bar-head">
+        <div class="bar-label">${escapeHtml(item.label)}</div>
+        <div class="bar-value">${formatCurrency(item.amount)}</div>
+      </div>
+      <div class="bar-track"><div class="bar-fill${alt ? " alt" : ""}" style="width:${item.amount / max * 100}%"></div></div>
+    </div>
+  `).join("");
 }
 
 function updateStatuses(scope, message) {

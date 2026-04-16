@@ -1,11 +1,11 @@
 {
-  "versionCode": 5,
-  "versionName": "1.0.4",
-  "apkUrl": "https://123321step.github.io/smart-ledger/android-app/downloads/smart-ledger-v1.0.4.apk",
-  "publishedAt": "2026-04-16T21:10:00+08:00",
+  "versionCode": 6,
+  "versionName": "1.0.5",
+  "apkUrl": "https://123321step.github.io/smart-ledger/android-app/downloads/smart-ledger-v1.0.5.apk",
+  "publishedAt": "2026-04-16T23:20:00+08:00",
   "notes": [
-    "安卓 App 改为使用系统原生语音识别",
-    "修复 WebView 中语音按钮无效的问题",
-    "继续保留更新提示与单笔编辑修复"
+    "Redesigned the mobile UI with cleaner spacing and more native-feeling cards",
+    "Fixed small-screen report layout by switching to mobile summary cards",
+    "Improved chart rhythm, typography, and overall phone adaptation"
   ]
 }
