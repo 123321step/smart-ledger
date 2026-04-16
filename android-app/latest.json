@@ -1,11 +1,11 @@
 {
-  "versionCode": 3,
-  "versionName": "1.0.2",
-  "apkUrl": "https://123321step.github.io/smart-ledger/android-app/downloads/smart-ledger-v1.0.2.apk",
-  "publishedAt": "2026-04-16T09:30:00+08:00",
+  "versionCode": 4,
+  "versionName": "1.0.3",
+  "apkUrl": "https://123321step.github.io/smart-ledger/android-app/downloads/smart-ledger-v1.0.3.apk",
+  "publishedAt": "2026-04-16T20:35:00+08:00",
   "notes": [
-    "修复安卓 App 中单笔编辑弹层按钮点击无响应",
-    "加强隐藏弹层和触摸事件兼容性",
-    "继续支持正式签名与 App 内自动更新"
+    "打开 App 或回到前台时会主动提示新版本",
+    "避免下载更新后立刻重复弹窗",
+    "保留单笔编辑按钮点击修复"
   ]
 }

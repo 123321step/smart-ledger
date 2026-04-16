@@ -4,7 +4,8 @@ const STORAGE_KEYS = {
   gist: "smart-ledger-v3-gist",
   ai: "smart-ledger-v3-ai",
   ledger: "smart-ledger-v3-ledger",
-  ui: "smart-ledger-v3-ui"
+  ui: "smart-ledger-v3-ui",
+  appPrompt: "smart-ledger-v3-app-prompt"
 };
 
 const GIST_FILENAME = "smart-ledger-sync.json";
@@ -163,7 +164,8 @@ const state = {
     build: "0",
     updateAvailable: false,
     latestVersion: "",
-    downloadUrl: ""
+    downloadUrl: "",
+    lastOpenedAt: 0
   }
 };
 
@@ -473,10 +475,10 @@ async function setupNativeApp() {
       updateStatuses("app");
     }
 
-    await checkAppUpdate({ silent: true });
+    await checkAppUpdate({ silent: false, trigger: "startup" });
 
     appPlugin?.addListener?.("appStateChange", ({ isActive }) => {
-      if (isActive) checkAppUpdate({ silent: true });
+      if (isActive) checkAppUpdate({ silent: false, trigger: "resume" });
     });
   } catch (error) {
     updateStatuses("app", `App 信息读取失败：${error.message}`);
@@ -1745,7 +1747,7 @@ function getCapacitorPlugin(name) {
 }
 
 async function checkAppUpdate(options = {}) {
-  const { silent = false, manual = false } = options;
+  const { silent = false, manual = false, trigger = "manual" } = options;
   if (!isNativeApp()) {
     updateStatuses("app");
     if (manual) notify("请在安卓版 App 内检查更新。", { vibrate: false });
@@ -1775,8 +1777,9 @@ async function checkAppUpdate(options = {}) {
 
     const notes = Array.isArray(manifest.notes) ? manifest.notes.filter(Boolean).join("\n") : "";
     updateStatuses("app", `发现新版本 ${latestVersion}，准备跳转下载。`);
-    if (!silent) {
+    if (!silent && shouldPromptAppUpdate(latestVersion, { manual, trigger })) {
       const confirmed = window.confirm(`发现新版本 ${latestVersion}。\n\n${notes || "点击确定后将打开下载链接。"}\n\n是否现在下载更新？`);
+      rememberAppUpdatePrompt(latestVersion);
       if (confirmed) await openAppUpdate(apkUrl);
     }
     return true;
@@ -1789,12 +1792,26 @@ async function checkAppUpdate(options = {}) {
 
 async function openAppUpdate(url) {
   if (!url) throw new Error("更新下载地址为空");
+  state.appMeta.lastOpenedAt = Date.now();
   const browserPlugin = getCapacitorPlugin("Browser");
   if (browserPlugin?.open) {
     await browserPlugin.open({ url });
     return;
   }
   window.open(url, "_blank", "noopener");
+}
+
+function shouldPromptAppUpdate(latestVersion, options = {}) {
+  const { manual = false, trigger = "manual" } = options;
+  if (manual) return true;
+  if (Date.now() - Number(state.appMeta.lastOpenedAt || 0) < 15000) return false;
+  const lastPromptedVersion = localStorage.getItem(STORAGE_KEYS.appPrompt) || "";
+  if (lastPromptedVersion === latestVersion && trigger !== "startup") return false;
+  return true;
+}
+
+function rememberAppUpdatePrompt(version) {
+  localStorage.setItem(STORAGE_KEYS.appPrompt, String(version || ""));
 }
 
 function isVersionNewer(latestVersion, currentVersion) {
