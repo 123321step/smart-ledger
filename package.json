@@ -1,7 +1,7 @@
 {
   "name": "smart-ledger-pro",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Smart ledger web app packaged for Android with update detection.",
   "scripts": {
     "build:web": "node scripts/build-web.mjs",

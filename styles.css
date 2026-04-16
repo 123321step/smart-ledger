@@ -1030,6 +1030,12 @@ tbody tr:nth-child(odd) {
   transition: opacity 180ms ease, transform 180ms ease;
 }
 
+.app-toast[hidden],
+.sheet-backdrop[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .app-toast.is-visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
@@ -1053,6 +1059,7 @@ tbody tr:nth-child(odd) {
   background: rgba(255, 250, 242, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 26px 60px rgba(49, 27, 7, 0.26);
+  touch-action: manipulation;
 }
 
 .sheet-meta {
@@ -1083,6 +1090,13 @@ tbody tr:nth-child(odd) {
 
 .sheet-close {
   white-space: nowrap;
+}
+
+.sheet-actions button,
+.sheet-close,
+.quick-sheet-panel button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .quick-sheet-section + .quick-sheet-section {

@@ -310,14 +310,14 @@ function bindEvents() {
   els.recordsContainer.addEventListener("touchstart", handleRecordSwipeStart, { passive: true });
   els.recordsContainer.addEventListener("touchmove", handleRecordSwipeMove, { passive: true });
   els.recordsContainer.addEventListener("touchend", handleRecordSwipeEnd, { passive: true });
-  els.closeItemEditorBtn.addEventListener("click", closeItemEditor);
-  els.saveItemEditorBtn.addEventListener("click", saveEditedItem);
-  els.deleteItemBtn.addEventListener("click", deleteEditingItem);
+  addPressListener(els.closeItemEditorBtn, closeItemEditor);
+  addPressListener(els.saveItemEditorBtn, saveEditedItem);
+  addPressListener(els.deleteItemBtn, deleteEditingItem);
   els.itemEditorType.addEventListener("change", syncItemEditorCategory);
   els.itemEditor.addEventListener("click", (event) => {
     if (event.target === els.itemEditor) closeItemEditor();
   });
-  els.closeQuickSheetBtn.addEventListener("click", closeQuickSheet);
+  addPressListener(els.closeQuickSheetBtn, closeQuickSheet);
   els.quickSheet.addEventListener("click", (event) => {
     if (event.target === els.quickSheet) closeQuickSheet();
   });
@@ -1712,6 +1712,28 @@ function loadJson(key, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function addPressListener(element, handler) {
+  if (!element) return;
+  let touchHandled = false;
+  element.addEventListener("touchend", (event) => {
+    touchHandled = true;
+    event.preventDefault();
+    event.stopPropagation();
+    handler(event);
+    setTimeout(() => {
+      touchHandled = false;
+    }, 300);
+  }, { passive: false });
+  element.addEventListener("click", (event) => {
+    if (touchHandled) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    handler(event);
+  });
 }
 
 function isNativeApp() {
