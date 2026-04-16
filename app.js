@@ -155,6 +155,7 @@ const state = {
   editingItemId: null,
   continuousVoiceEnabled: false,
   autoVoiceSaveEnabled: false,
+  nativeSpeechAvailable: false,
   amountBuffer: "",
   history: [],
   swipeItemId: null,
@@ -343,6 +344,14 @@ function hydrateSettings() {
 }
 
 function setupVoice() {
+  if (state.nativeSpeechAvailable) {
+    els.voiceBtn.disabled = false;
+    els.mobileVoiceBtn.disabled = false;
+    if (els.continuousVoiceBtn) els.continuousVoiceBtn.disabled = true;
+    els.voiceStatus.textContent = "当前使用安卓系统语音识别。点语音按钮后会调起系统语音输入。";
+    return;
+  }
+
   if (!SpeechRecognition) {
     els.voiceBtn.disabled = true;
     els.mobileVoiceBtn.disabled = true;
@@ -413,6 +422,10 @@ function setupVoice() {
 }
 
 function toggleVoice() {
+  if (state.nativeSpeechAvailable) {
+    startNativeVoiceRecognition();
+    return;
+  }
   if (!recognition) return;
   if (isListening) {
     manualVoiceStop = true;
@@ -473,6 +486,19 @@ async function setupNativeApp() {
       state.appMeta.version = info.version || "1.0.0";
       state.appMeta.build = String(info.build || "1");
       updateStatuses("app");
+    }
+
+    const nativeSpeechPlugin = getCapacitorPlugin("NativeSpeech");
+    if (nativeSpeechPlugin?.isAvailable) {
+      try {
+        const availability = await nativeSpeechPlugin.isAvailable();
+        state.nativeSpeechAvailable = Boolean(availability?.available);
+      } catch {
+        state.nativeSpeechAvailable = false;
+      }
+    }
+    if (state.nativeSpeechAvailable) {
+      setupVoice();
     }
 
     await checkAppUpdate({ silent: false, trigger: "startup" });
@@ -951,6 +977,47 @@ function appendVoiceTranscript(transcript) {
   state.amountBuffer = "";
   els.entryInput.value = els.entryInput.value.trim() ? `${els.entryInput.value.trim()}\n${transcript}` : transcript;
   renderPreview();
+}
+
+async function startNativeVoiceRecognition() {
+  if (isListening) return;
+  const nativeSpeechPlugin = getCapacitorPlugin("NativeSpeech");
+  if (!nativeSpeechPlugin?.startListening) {
+    els.voiceStatus.textContent = "当前设备未接入原生语音识别。";
+    return;
+  }
+
+  setVoiceButtons(true);
+  els.voiceStatus.textContent = "正在打开系统语音识别，请开始说话。";
+
+  try {
+    const result = await nativeSpeechPlugin.startListening({
+      language: "zh-CN",
+      prompt: "请说出消费内容"
+    });
+    const transcript = String(result?.transcript || "").trim();
+    if (!transcript) {
+      els.voiceStatus.textContent = "没有识别到有效内容。";
+      return;
+    }
+
+    appendVoiceTranscript(transcript);
+    const previewItems = parseLedgerInput(els.entryInput.value);
+    const shouldSave = state.autoVoiceSaveEnabled
+      ? previewItems.length > 0
+      : previewItems.length > 0 && window.confirm(`识别到 ${previewItems.length} 条记录，是否立即保存到 ${els.entryDate.value}？`);
+    els.voiceStatus.textContent = shouldSave
+      ? state.autoVoiceSaveEnabled ? "识别完成，正在自动保存本次语音记账。" : "识别完成，正在保存本次语音记账。"
+      : "识别完成，已加入输入框，你可以再检查一下。";
+    if (shouldSave) saveCurrentEntry({ silent: true, fromVoice: true });
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    els.voiceStatus.textContent = /cancel/i.test(message) || /取消/.test(message)
+      ? "已取消语音输入。"
+      : `语音识别失败：${message || "未知错误"}`;
+  } finally {
+    setVoiceButtons(false);
+  }
 }
 
 function clearAmountFromEntry() {
